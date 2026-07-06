@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cantata</title>
+    <!--
+      Fallback de SPA para hosts estáticos sem rewrite (ex.: GitHub Pages):
+      redireciona /verify-email?token=x para /?/verify-email&token=x,
+      que o script no index.html restaura via history.replaceState.
+      Técnica: https://github.com/rafgraph/spa-github-pages
+    -->
+    <script>
+      var l = window.location
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          '/?/' +
+          l.pathname.slice(1).replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash,
+      )
+    </script>
+  </head>
+  <body></body>
+</html>

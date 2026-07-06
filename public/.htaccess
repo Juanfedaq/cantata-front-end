@@ -1,0 +1,11 @@
+# Fallback de SPA (Apache/LiteSpeed — Hostinger):
+# qualquer rota que não seja um arquivo/pasta real cai no index.html,
+# para os deep links dos e-mails (/verify-email, /reset-password) funcionarem.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

@@ -16,10 +16,14 @@ import '@/assets/styles/main.scss'
 
 import App from './App.vue'
 import router from './router'
+import { useAuthStore } from '@/stores/auth'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+
+// Revalida a sessão persistida contra o servidor (não bloqueia a montagem).
+useAuthStore().bootstrap()
 
 app.mount('#app')

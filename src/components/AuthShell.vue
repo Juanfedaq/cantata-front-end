@@ -9,8 +9,10 @@ defineProps<{
 
 <template>
   <div class="shell">
-    <div class="color-shift"></div>
-    <img src="/icon.svg" alt="" aria-hidden="true" class="watermark" />
+    <div class="bg" aria-hidden="true">
+      <div class="color-shift"></div>
+      <img src="/icon.svg" alt="" class="watermark" />
+    </div>
 
     <main class="card">
       <img src="/logo.svg" alt="Cantata" class="logo" />
@@ -25,14 +27,23 @@ defineProps<{
 <style scoped lang="scss">
 .shell {
   position: relative;
-  width: 100vw;
+  width: 100%;
   min-height: 100vh;
-  overflow: hidden;
   background-color: $color-back;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+}
+
+// Fundo animado numa camada fixa e recortada: o conteúdo pode crescer
+// além da viewport e rolar normalmente (ex.: cadastro em tela baixa)
+// sem o fundo criar barras de rolagem nem sumir durante o scroll.
+.bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
 }
 
 .color-shift {
@@ -63,7 +74,6 @@ defineProps<{
   opacity: 0.04;
   pointer-events: none;
   user-select: none;
-  z-index: 0;
 }
 
 .card {

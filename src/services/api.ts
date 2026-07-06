@@ -17,6 +17,14 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+// Chamado quando uma requisição autenticada recebe 401 (sessão inválida
+// ou expirada). O store de auth registra o logout aqui — evita import
+// circular entre api.ts e o store.
+let onUnauthorized: (() => void) | null = null
+export function setOnUnauthorized(handler: () => void): void {
+  onUnauthorized = handler
+}
+
 /** Erro de API com a mensagem já pronta para exibir ao usuário. */
 export class ApiError extends Error {
   status: number
@@ -58,6 +66,11 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
+    // Sessão inválida/expirada numa chamada autenticada: derruba a sessão
+    // local para a UI não ficar presa num estado "logado" que sempre falha.
+    if (res.status === 401 && auth) {
+      onUnauthorized?.()
+    }
     throw new ApiError(data.error ?? 'Ocorreu um erro inesperado.', res.status, data.code)
   }
 

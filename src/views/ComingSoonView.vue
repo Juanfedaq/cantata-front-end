@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink } from "vue-router";
+// Landing estática — sem lógica; o visual é todo CSS.
 </script>
 
 <template>
@@ -85,20 +85,6 @@ import { RouterLink } from "vue-router";
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, $color-primary 50%, transparent 100%);
   opacity: 0.7;
-}
-
-.enter-link {
-  font-family: $font-body;
-  font-size: 0.9rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba($color-white, 0.7);
-  text-decoration: none;
-  transition: color 0.2s;
-
-  &:hover {
-    color: $color-primary;
-  }
 }
 
 @keyframes movePosition {
