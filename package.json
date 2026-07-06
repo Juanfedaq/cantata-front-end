@@ -15,6 +15,8 @@
     "format": "oxfmt src/"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/playfair-display": "^5.2.8",
     "pinia": "^3.0.4",
     "vue": "^3.5.38",
     "vue-router": "^5.1.0"
@@ -33,6 +35,7 @@
     "npm-run-all2": "^9.0.2",
     "oxfmt": "^0.54.0",
     "oxlint": "~1.69.0",
+    "sass": "^1.101.0",
     "typescript": "~6.0.0",
     "vite": "^8.0.16",
     "vite-plugin-vue-devtools": "^8.1.2",

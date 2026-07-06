@@ -1,0 +1,18 @@
+@use 'variables' as *;
+
+// Também expõe os tokens como CSS custom properties,
+// úteis dentro de <style> sem SCSS ou em CSS puro.
+:root {
+  --color-white: #{$color-white};
+  --color-back: #{$color-back};
+  --color-primary: #{$color-primary};
+
+  --font-display: #{$font-display};
+  --font-body: #{$font-body};
+}
+
+body {
+  font-family: $font-body;
+  color: $color-white;
+  background-color: $color-back;
+}
