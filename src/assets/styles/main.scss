@@ -1,4 +1,5 @@
 @use 'variables' as *;
+@use 'auth';
 
 // Também expõe os tokens como CSS custom properties,
 // úteis dentro de <style> sem SCSS ou em CSS puro.
@@ -11,8 +12,24 @@
   --font-body: #{$font-body};
 }
 
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+}
+
 body {
   font-family: $font-body;
   color: $color-white;
   background-color: $color-back;
+  overflow: hidden;
 }
