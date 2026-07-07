@@ -52,7 +52,7 @@ onBeforeUnmount(() => observer?.disconnect())
     <header class="hero">
       <div class="topbar">
         <div class="topbar__inner">
-          <img src="/logo.svg" alt="Cantata" class="topbar__logo" />
+          <img src="/icon.svg" alt="Cantata" class="topbar__logo" />
           <span class="badge">
             <span class="badge__dot"></span>
             Em breve
@@ -61,16 +61,8 @@ onBeforeUnmount(() => observer?.disconnect())
       </div>
 
       <div class="hero__body">
-        <img src="/logo.svg" alt="Cantata" class="hero__logo" />
-
-        <div class="staff" aria-hidden="true">
-          <div class="staff__line"></div>
-          <div class="staff__line"></div>
-          <div class="staff__line staff__line--center">
-            <div class="staff__dot"></div>
-          </div>
-          <div class="staff__line"></div>
-          <div class="staff__line"></div>
+        <div class="hero__logo-frame">
+          <img src="/logo.svg" alt="Cantata" class="hero__logo" />
         </div>
 
         <h1 class="hero__title">Onde toda música encontra sua <em>voz</em></h1>
@@ -79,8 +71,6 @@ onBeforeUnmount(() => observer?.disconnect())
           O Cantata é um marketplace de partituras que conecta compositores, maestros e músicos —
           um lugar para publicar, descobrir e adquirir música escrita.
         </p>
-
-        <a href="#o-que-e" class="cta">Conhecer o Cantata</a>
       </div>
 
       <div class="hero__spacer"></div>
@@ -174,11 +164,6 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <div class="footer__bar">
           <span class="footer__copyright">© 2026 Cantata. Todos os direitos reservados.</span>
-          <div class="footer__links">
-            <a href="#" class="footer__link">Instagram</a>
-            <a href="#" class="footer__link">YouTube</a>
-            <a href="mailto:contato@cantata.com.br" class="footer__link">Contato</a>
-          </div>
         </div>
       </div>
     </footer>
@@ -282,7 +267,6 @@ $line-soft: rgba($color-white, 0.12);
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 0 32px;
   position: relative;
   z-index: 1;
 }
@@ -302,15 +286,15 @@ $line-soft: rgba($color-white, 0.12);
 
   &__inner {
     width: 100%;
-    max-width: 1080px;
+    max-width: calc(1080px + 64px);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 22px 0;
+    padding: 22px 32px;
   }
 
   &__logo {
-    height: 18px;
+    height: 26px;
     display: block;
   }
 }
@@ -339,44 +323,23 @@ $line-soft: rgba($color-white, 0.12);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 130px 0 80px;
-  max-width: 780px;
+  padding: 130px 32px 80px;
+  width: 100%;
+  max-width: calc(780px + 64px);
+}
+
+.hero__logo-frame {
+  display: flex;
+  justify-content: center;
+  width: min(760px, 100%);
+  padding: 44px 0;
+  @include dissolved-lines($color-primary);
+  animation: riseIn 1.1s $ease-out both;
 }
 
 .hero__logo {
   width: min(440px, 82vw);
   display: block;
-  animation: riseIn 1.1s $ease-out both;
-}
-
-.staff {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  width: 220px;
-  margin-top: 56px;
-  animation: riseIn 1.1s $ease-out 0.15s both;
-
-  &__line {
-    height: 1px;
-    background: rgba($color-white, 0.25);
-
-    &--center {
-      position: relative;
-    }
-  }
-
-  &__dot {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: $color-primary;
-    box-shadow: 0 0 18px rgba($color-primary, 0.8);
-  }
 }
 
 .hero__title {
@@ -403,30 +366,6 @@ $line-soft: rgba($color-white, 0.12);
   margin: 28px 0 0;
   text-wrap: pretty;
   animation: riseIn 1.1s $ease-out 0.4s both;
-}
-
-.cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 48px;
-  padding: 17px 44px;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  @include dissolved-lines($color-primary);
-  transition:
-    color 0.35s ease,
-    text-shadow 0.35s ease,
-    letter-spacing 0.35s ease;
-  animation: riseIn 1.1s $ease-out 0.55s both;
-
-  &:hover {
-    color: $color-primary;
-    text-shadow: 0 0 24px rgba($color-primary, 0.5);
-    letter-spacing: 0.24em;
-  }
 }
 
 .hero__spacer {
@@ -625,10 +564,8 @@ $line-soft: rgba($color-white, 0.12);
 
   &__bar {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 20px;
     border-top: 1px solid rgba($color-white, 0.15);
     padding-top: 32px;
   }
@@ -637,18 +574,6 @@ $line-soft: rgba($color-white, 0.12);
     font-size: 12px;
     letter-spacing: 0.06em;
     color: rgba($color-white, 0.45);
-  }
-
-  &__links {
-    display: flex;
-    gap: 32px;
-  }
-
-  &__link {
-    font-size: 12px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba($color-white, 0.65);
   }
 }
 
@@ -696,18 +621,58 @@ $line-soft: rgba($color-white, 0.12);
 }
 
 // -------- Responsivo --------
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  // Sem a coluna do eyebrow, sobra largura para as 3 colunas de features.
   .about {
     grid-template-columns: 1fr;
     gap: 32px;
   }
+}
+
+@media (max-width: 720px) {
+  .topbar__inner {
+    padding: 22px 24px;
+  }
+
+  .hero__body {
+    padding: 96px 24px 64px;
+  }
+
+  .hero__logo-frame {
+    padding: 36px 0;
+  }
+
+  .hero__spacer {
+    height: 48px;
+  }
+
+  .section {
+    padding: 88px 24px;
+  }
+
+  .eyebrow--spaced {
+    margin-bottom: 48px;
+  }
 
   .features {
     grid-template-columns: 1fr;
+    margin-top: 48px;
 
     &__item {
       padding: 28px 0 0;
       border-left: none;
+    }
+  }
+
+  .card {
+    padding: 40px 28px;
+  }
+
+  .footer {
+    padding: 64px 24px 40px;
+
+    &__inner {
+      gap: 48px;
     }
   }
 }
@@ -716,11 +681,9 @@ $line-soft: rgba($color-white, 0.12);
   .glow,
   .badge__dot,
   .topbar,
-  .hero__logo,
-  .staff,
+  .hero__logo-frame,
   .hero__title,
-  .hero__lead,
-  .cta {
+  .hero__lead {
     animation: none;
   }
 
