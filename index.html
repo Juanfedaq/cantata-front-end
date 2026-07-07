@@ -2,23 +2,38 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cantata — Partituras que encontram vozes</title>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PFYV4EK1R"></script>
-    <script>
-      window.dataLayer = window.dataLayer || []
-      function gtag() {
-        dataLayer.push(arguments)
-      }
-      gtag('js', new Date())
 
-      gtag('config', 'G-0PFYV4EK1R')
-    </script>
+    <!-- SEO -->
+    <meta name="description" content="O Cantata é um marketplace de partituras que conecta compositores, maestros e músicos — um lugar para publicar, descobrir e adquirir música escrita.">
+    <link rel="canonical" href="https://cantata.com.br/">
+    <meta name="theme-color" content="#11100D">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <!-- Open Graph (WhatsApp, Facebook, LinkedIn, iMessage) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Cantata">
+    <meta property="og:url" content="https://cantata.com.br/">
+    <meta property="og:title" content="Cantata — Onde toda música encontra sua voz">
+    <meta property="og:description" content="Marketplace de partituras que conecta compositores, maestros e músicos — um lugar para publicar, descobrir e adquirir música escrita.">
+    <meta property="og:image" content="https://cantata.com.br/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="pt_BR">
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Cantata — Onde toda música encontra sua voz">
+    <meta name="twitter:description" content="Marketplace de partituras que conecta compositores, maestros e músicos — um lugar para publicar, descobrir e adquirir música escrita.">
+    <meta name="twitter:image" content="https://cantata.com.br/og-image.png">
     <script>
       // Contraparte do public/404.html (fallback de SPA em host estático):
       // restaura a URL real codificada como /?/rota&query antes do app montar.
+      // Precisa rodar antes do gtag('config'), que captura a URL da página.
       ;(function (l) {
         if (l.search[1] === '/') {
           var decoded = l.search
@@ -31,6 +46,17 @@
           window.history.replaceState(null, '', l.pathname.slice(0, -1) + decoded + l.hash)
         }
       })(window.location)
+    </script>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0PFYV4EK1R"></script>
+    <script>
+      window.dataLayer = window.dataLayer || []
+      function gtag() {
+        dataLayer.push(arguments)
+      }
+      gtag('js', new Date())
+
+      gtag('config', 'G-0PFYV4EK1R')
     </script>
   </head>
   <body>
