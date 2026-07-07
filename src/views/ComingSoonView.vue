@@ -5,9 +5,22 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 // prefers-reduced-motion, o conteúdo permanece visível).
 const root = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
+let rafId = 0
+
+// Parallax das linhas de fundo: alimenta --scroll-y, consumida no CSS
+// com um fator de velocidade próprio por camada.
+const onScroll = () => {
+  cancelAnimationFrame(rafId)
+  rafId = requestAnimationFrame(() => {
+    root.value?.style.setProperty('--scroll-y', String(window.scrollY))
+  })
+}
 
 onMounted(() => {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+  window.addEventListener('scroll', onScroll, { passive: true })
+
   if (!('IntersectionObserver' in window)) return
 
   const els = Array.from(root.value?.querySelectorAll<HTMLElement>('[data-reveal]') ?? [])
@@ -39,7 +52,11 @@ onMounted(() => {
   for (const el of els) observer.observe(el)
 })
 
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  window.removeEventListener('scroll', onScroll)
+  cancelAnimationFrame(rafId)
+})
 </script>
 
 <template>
@@ -47,6 +64,14 @@ onBeforeUnmount(() => observer?.disconnect())
     <!-- glows ambientes -->
     <div class="glow glow--top" aria-hidden="true"></div>
     <div class="glow glow--right" aria-hidden="true"></div>
+
+    <!-- linhas de pauta ao fundo, com parallax -->
+    <div class="bg-lines" aria-hidden="true">
+      <div class="bg-staff bg-staff--a"><span v-for="n in 5" :key="n"></span></div>
+      <div class="bg-staff bg-staff--b"><span v-for="n in 5" :key="n"></span></div>
+      <div class="bg-staff bg-staff--c"><span v-for="n in 5" :key="n"></span></div>
+      <div class="bg-staff bg-staff--d"><span v-for="n in 5" :key="n"></span></div>
+    </div>
 
     <!-- ===================== HERO ===================== -->
     <header class="hero">
@@ -229,14 +254,20 @@ $line-soft: rgba($color-white, 0.12);
   border-radius: 50%;
   pointer-events: none;
 
+  // Sem filter: blur() — o radial-gradient já dissolve suavemente e o
+  // blur sobre superfícies grandes animadas custava caro no compositor.
   &--top {
     top: -180px;
     left: 50%;
     margin-left: -320px;
     width: 640px;
     height: 640px;
-    background: radial-gradient(circle, rgba($color-primary, 0.22) 0%, rgba($color-primary, 0) 70%);
-    filter: blur(80px);
+    background: radial-gradient(
+      circle,
+      rgba($color-primary, 0.2) 0%,
+      rgba($color-primary, 0.08) 40%,
+      rgba($color-primary, 0) 72%
+    );
     animation: drift1 18s ease-in-out infinite;
   }
 
@@ -245,8 +276,12 @@ $line-soft: rgba($color-white, 0.12);
     right: -260px;
     width: 560px;
     height: 560px;
-    background: radial-gradient(circle, rgba($color-white, 0.07) 0%, rgba($color-white, 0) 70%);
-    filter: blur(70px);
+    background: radial-gradient(
+      circle,
+      rgba($color-white, 0.065) 0%,
+      rgba($color-white, 0.025) 40%,
+      rgba($color-white, 0) 72%
+    );
     animation: drift2 24s ease-in-out infinite;
   }
 
@@ -255,9 +290,98 @@ $line-soft: rgba($color-white, 0.12);
     left: -220px;
     width: 560px;
     height: 560px;
-    background: radial-gradient(circle, rgba($color-primary, 0.14) 0%, rgba($color-primary, 0) 70%);
-    filter: blur(80px);
+    background: radial-gradient(
+      circle,
+      rgba($color-primary, 0.13) 0%,
+      rgba($color-primary, 0.05) 40%,
+      rgba($color-primary, 0) 72%
+    );
     animation: drift2 26s ease-in-out infinite;
+  }
+}
+
+// -------- Linhas de pauta ao fundo (parallax) --------
+.bg-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bg-staff {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(1300px, 105vw);
+  transform: rotate(var(--tilt, 0deg));
+
+  span {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--line-color) 30%,
+      var(--line-color) 70%,
+      transparent 100%
+    );
+    will-change: transform;
+    // Blur na própria linha (não no grupo): a textura desfocada é
+    // rasterizada uma vez e o scroll vira só transform no compositor.
+    filter: blur(var(--line-blur, 2px));
+    // --scroll-y vem do listener de scroll; cada linha tem seu fator.
+    transform: translateY(calc(var(--scroll-y, 0) * var(--line-speed) * 1px));
+  }
+
+  // Leque de velocidades: cada linha do grupo anda numa fração diferente
+  // do scroll (a de cima mais devagar, a de baixo mais depressa), abrindo
+  // e fechando a pauta — sensação de profundidade 3D.
+  @for $i from 1 through 5 {
+    span:nth-child(#{$i}) {
+      --line-speed: calc(var(--speed) + #{$i - 3} * var(--spread));
+    }
+  }
+
+  &--a {
+    top: 620px;
+    left: -100px;
+    --speed: 0.16;
+    --spread: 0.03;
+    --tilt: -4deg;
+    --line-color: #{rgba($color-white, 0.2)};
+    --line-blur: 2px;
+  }
+
+  &--b {
+    // Parallax invertido: sobe contra o scroll enquanto os demais descem.
+    top: 1450px;
+    right: -120px;
+    width: min(1150px, 95vw);
+    --speed: -0.28;
+    --spread: -0.045;
+    --tilt: 3deg;
+    --line-color: #{rgba($color-primary, 0.32)};
+    --line-blur: 1.5px;
+  }
+
+  &--c {
+    top: 2000px;
+    left: -140px;
+    --speed: 0.1;
+    --spread: 0.02;
+    --tilt: -2deg;
+    --line-color: #{rgba($color-white, 0.16)};
+    --line-blur: 3.5px;
+  }
+
+  &--d {
+    top: 2720px;
+    right: -100px;
+    width: min(1200px, 98vw);
+    --speed: 0.22;
+    --spread: 0.035;
+    --tilt: 5deg;
+    --line-color: #{rgba($color-white, 0.18)};
+    --line-blur: 2px;
   }
 }
 
@@ -484,9 +608,9 @@ $line-soft: rgba($color-white, 0.12);
 
 .card {
   border: 1px solid rgba($color-white, 0.16);
+  // Sem backdrop-filter: sobre o fundo quase sólido o vidro era
+  // imperceptível e custava três camadas caras de composição.
   background: rgba($color-white, 0.03);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   padding: 48px 40px;
   display: flex;
   flex-direction: column;
@@ -688,6 +812,10 @@ $line-soft: rgba($color-white, 0.12);
   }
 
   .card:hover {
+    transform: none;
+  }
+
+  .bg-staff span {
     transform: none;
   }
 }
