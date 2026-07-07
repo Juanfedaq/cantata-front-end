@@ -1,5 +1,42 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+
+// -------- Tema (escuro padrão / claro) --------
+type Theme = 'dark' | 'light'
+const THEME_KEY = 'cantata-theme'
+
+// Prioridade: ?theme= na URL > escolha salva > preferência do sistema.
+const fromQuery = new URLSearchParams(window.location.search).get('theme')
+const stored = localStorage.getItem(THEME_KEY)
+const theme = ref<Theme>(
+  fromQuery === 'light' || fromQuery === 'dark'
+    ? fromQuery
+    : stored === 'light' || stored === 'dark'
+      ? stored
+      : window.matchMedia('(prefers-color-scheme: light)').matches
+        ? 'light'
+        : 'dark',
+)
+
+const isDark = computed(() => theme.value === 'dark')
+const logoSrc = computed(() => (isDark.value ? '/logo.svg' : '/logo-black.svg'))
+const iconSrc = computed(() => (isDark.value ? '/icon.svg' : '/icon-black.svg'))
+
+function toggleTheme() {
+  theme.value = isDark.value ? 'light' : 'dark'
+  localStorage.setItem(THEME_KEY, theme.value)
+}
+
+// Mantém a UI do browser (barra mobile) na cor do tema.
+watch(
+  theme,
+  (t) => {
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', t === 'dark' ? '#11100D' : '#ECE6D8')
+  },
+  { immediate: true },
+)
 
 // Scroll reveal (progressive enhancement: sem JS ou com
 // prefers-reduced-motion, o conteúdo permanece visível).
@@ -60,7 +97,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="landing">
+  <div ref="root" class="landing" :class="{ 'landing--light': !isDark }">
     <!-- glows ambientes -->
     <div class="glow glow--top" aria-hidden="true"></div>
     <div class="glow glow--right" aria-hidden="true"></div>
@@ -77,17 +114,53 @@ onBeforeUnmount(() => {
     <header class="hero">
       <div class="topbar">
         <div class="topbar__inner">
-          <img src="/icon.svg" alt="Cantata" class="topbar__logo" />
-          <span class="badge">
-            <span class="badge__dot"></span>
-            Em breve
-          </span>
+          <img :src="iconSrc" alt="Cantata" class="topbar__logo" />
+          <div class="topbar__right">
+            <span class="badge">
+              <span class="badge__dot"></span>
+              Em breve
+            </span>
+            <button
+              type="button"
+              class="theme-toggle"
+              :aria-label="isDark ? 'Ativar tema claro' : 'Ativar tema escuro'"
+              @click="toggleTheme"
+            >
+              <svg
+                v-if="isDark"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="4.5" />
+                <path
+                  d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"
+                />
+              </svg>
+              <svg
+                v-else
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              >
+                <path d="M20 13.2A8.1 8.1 0 0 1 10.8 4a7.5 7.5 0 1 0 9.2 9.2Z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="hero__body">
         <div class="hero__logo-frame">
-          <img src="/logo.svg" alt="Cantata" class="hero__logo" />
+          <img :src="logoSrc" alt="Cantata" class="hero__logo" />
         </div>
 
         <h1 class="hero__title">Onde toda música encontra sua <em>voz</em></h1>
@@ -183,7 +256,7 @@ onBeforeUnmount(() => {
     <footer class="footer">
       <div class="footer__inner">
         <div class="footer__brand" data-reveal>
-          <img src="/logo.svg" alt="Cantata" class="footer__logo" />
+          <img :src="logoSrc" alt="Cantata" class="footer__logo" />
           <p class="footer__tagline">Em desenvolvimento — a música vem primeiro.</p>
         </div>
 
@@ -209,14 +282,14 @@ html:has(.landing) {
 
 <style scoped lang="scss">
 $ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-$line-soft: rgba($color-white, 0.12);
+$line-soft: rgba(var(--fg-rgb), 0.12);
 
 // Botão/badge da marca: sem border-radius, só duas linhas horizontais
 // de 1px cujas extremidades se dissolvem em gradiente.
 @mixin dissolved-lines($color) {
   background-image:
-    linear-gradient(90deg, rgba($color, 0) 0%, $color 30%, $color 70%, rgba($color, 0) 100%),
-    linear-gradient(90deg, rgba($color, 0) 0%, $color 30%, $color 70%, rgba($color, 0) 100%);
+    linear-gradient(90deg, transparent 0%, $color 30%, $color 70%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, $color 30%, $color 70%, transparent 100%);
   background-size:
     100% 1px,
     100% 1px;
@@ -227,19 +300,32 @@ $line-soft: rgba($color-white, 0.12);
 }
 
 .landing {
+  // Tokens do tema em runtime: o claro só inverte figura e fundo;
+  // o dourado é o mesmo nos dois.
+  --bg-rgb: 17, 16, 13; // #11100D
+  --fg-rgb: 236, 230, 216; // #ECE6D8
+
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: $color-back;
-  color: $color-white;
+  background: rgb(var(--bg-rgb));
+  color: rgb(var(--fg-rgb));
   font-family: $font-body;
   -webkit-font-smoothing: antialiased;
   position: relative;
   // "clip" em vez de "hidden" para não quebrar o position: sticky da topbar.
   overflow: clip;
+  transition:
+    background-color 0.4s ease,
+    color 0.4s ease;
+
+  &--light {
+    --bg-rgb: 236, 230, 216; // #ECE6D8
+    --fg-rgb: 17, 16, 13; // #11100D
+  }
 
   a {
-    color: $color-white;
+    color: rgb(var(--fg-rgb));
     text-decoration: none;
 
     &:hover {
@@ -278,9 +364,9 @@ $line-soft: rgba($color-white, 0.12);
     height: 560px;
     background: radial-gradient(
       circle,
-      rgba($color-white, 0.065) 0%,
-      rgba($color-white, 0.025) 40%,
-      rgba($color-white, 0) 72%
+      rgba(var(--fg-rgb), 0.065) 0%,
+      rgba(var(--fg-rgb), 0.025) 40%,
+      rgba(var(--fg-rgb), 0) 72%
     );
     animation: drift2 24s ease-in-out infinite;
   }
@@ -347,7 +433,7 @@ $line-soft: rgba($color-white, 0.12);
     --speed: 0.16;
     --spread: 0.03;
     --tilt: -4deg;
-    --line-color: #{rgba($color-white, 0.2)};
+    --line-color: rgba(var(--fg-rgb), 0.2);
     --line-blur: 2px;
   }
 
@@ -369,7 +455,7 @@ $line-soft: rgba($color-white, 0.12);
     --speed: 0.1;
     --spread: 0.02;
     --tilt: -2deg;
-    --line-color: #{rgba($color-white, 0.16)};
+    --line-color: rgba(var(--fg-rgb), 0.16);
     --line-blur: 3.5px;
   }
 
@@ -380,7 +466,7 @@ $line-soft: rgba($color-white, 0.12);
     --speed: 0.22;
     --spread: 0.035;
     --tilt: 5deg;
-    --line-color: #{rgba($color-white, 0.18)};
+    --line-color: rgba(var(--fg-rgb), 0.18);
     --line-blur: 2px;
   }
 }
@@ -402,11 +488,12 @@ $line-soft: rgba($color-white, 0.12);
   width: 100%;
   display: flex;
   justify-content: center;
-  background: rgba($color-back, 0.6);
+  background: rgba(var(--bg-rgb), 0.6);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid $line-soft;
   animation: fadeIn 1s ease-out both;
+  transition: background-color 0.4s ease;
 
   &__inner {
     width: 100%;
@@ -421,6 +508,32 @@ $line-soft: rgba($color-white, 0.12);
     height: 26px;
     display: block;
   }
+
+  &__right {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+  }
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: none;
+  border: none;
+  color: rgba(var(--fg-rgb), 0.6);
+  cursor: pointer;
+  transition: color 0.35s ease;
+
+  &:hover {
+    color: $color-primary;
+  }
+
+  svg {
+    display: block;
+  }
 }
 
 .badge {
@@ -430,9 +543,9 @@ $line-soft: rgba($color-white, 0.12);
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba($color-white, 0.6);
+  color: rgba(var(--fg-rgb), 0.6);
   padding: 9px 20px;
-  @include dissolved-lines(rgba($color-white, 0.35));
+  @include dissolved-lines(rgba(var(--fg-rgb), 0.35));
 
   &__dot {
     width: 6px;
@@ -485,7 +598,7 @@ $line-soft: rgba($color-white, 0.12);
 .hero__lead {
   font-size: 17px;
   line-height: 1.7;
-  color: rgba($color-white, 0.65);
+  color: rgba(var(--fg-rgb), 0.65);
   max-width: 520px;
   margin: 28px 0 0;
   text-wrap: pretty;
@@ -524,7 +637,7 @@ $line-soft: rgba($color-white, 0.12);
     font-size: 11px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: rgba($color-white, 0.55);
+    color: rgba(var(--fg-rgb), 0.55);
   }
 }
 
@@ -550,7 +663,7 @@ $line-soft: rgba($color-white, 0.12);
   &__text {
     font-size: 16px;
     line-height: 1.8;
-    color: rgba($color-white, 0.65);
+    color: rgba(var(--fg-rgb), 0.65);
     margin: 28px 0 0;
     max-width: 560px;
     text-wrap: pretty;
@@ -588,7 +701,7 @@ $line-soft: rgba($color-white, 0.12);
   &__text {
     font-size: 14px;
     line-height: 1.7;
-    color: rgba($color-white, 0.6);
+    color: rgba(var(--fg-rgb), 0.6);
     margin: 12px 0 0;
   }
 }
@@ -607,10 +720,10 @@ $line-soft: rgba($color-white, 0.12);
 }
 
 .card {
-  border: 1px solid rgba($color-white, 0.16);
+  border: 1px solid rgba(var(--fg-rgb), 0.16);
   // Sem backdrop-filter: sobre o fundo quase sólido o vidro era
   // imperceptível e custava três camadas caras de composição.
-  background: rgba($color-white, 0.03);
+  background: rgba(var(--fg-rgb), 0.03);
   padding: 48px 40px;
   display: flex;
   flex-direction: column;
@@ -643,7 +756,7 @@ $line-soft: rgba($color-white, 0.12);
   &__text {
     font-size: 15px;
     line-height: 1.8;
-    color: rgba($color-white, 0.65);
+    color: rgba(var(--fg-rgb), 0.65);
     margin: 0;
     text-wrap: pretty;
   }
@@ -682,7 +795,7 @@ $line-soft: rgba($color-white, 0.12);
     font-family: $font-display;
     font-style: italic;
     font-size: 18px;
-    color: rgba($color-white, 0.55);
+    color: rgba(var(--fg-rgb), 0.55);
     margin: 0;
   }
 
@@ -690,14 +803,14 @@ $line-soft: rgba($color-white, 0.12);
     display: flex;
     justify-content: center;
     align-items: center;
-    border-top: 1px solid rgba($color-white, 0.15);
+    border-top: 1px solid rgba(var(--fg-rgb), 0.15);
     padding-top: 32px;
   }
 
   &__copyright {
     font-size: 12px;
     letter-spacing: 0.06em;
-    color: rgba($color-white, 0.45);
+    color: rgba(var(--fg-rgb), 0.45);
   }
 }
 
