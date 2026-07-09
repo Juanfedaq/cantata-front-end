@@ -1,12 +1,334 @@
 // ============================================================
 // Cantata — Design tokens
+// (fonte da verdade visual: docs/guia-de-estilo.md)
 // ============================================================
 
+@use "sass:color";
+
 // -------- Cores --------
-$color-white: #ece6d8; // texto / superfícies claras
-$color-back: #11100d; // fundo principal
+// Figura e fundo vêm de CSS vars trocadas em runtime pelo tema claro/escuro
+// (mesmo sistema da ComingSoonView: o claro só inverte figura e fundo;
+// o dourado é o mesmo nos dois). As vars são definidas no :root em main.scss
+// e trocadas via data-theme no <html> pela store `stores/theme.ts`.
+$color-white: rgb(var(--fg-rgb)); // texto / superfícies claras (figura)
+$color-back: rgb(var(--bg-rgb)); // fundo principal
 $color-primary: #7a5f0e; // dourado / destaque
+
+// RGBs por tema (interpolados no :root em main.scss)
+$fg-rgb-dark: 236, 230, 216; // #ece6d8
+$bg-rgb-dark: 17, 16, 13; // #11100d
+
+// Cores funcionais — únicas exceções à paleta (guia §8)
+$color-error: #e07a5f;
+$color-success: #81b29a;
 
 // -------- Tipografia --------
 $font-display: "Playfair Display", serif; // títulos
 $font-body: "Inter", sans-serif; // corpo / UI
+
+// -------- Derivados padronizados (guia §2) --------
+// Alfas sobre a FIGURA usam rgba(var(--fg-rgb), x) — acompanham o tema.
+$ease-brand: cubic-bezier(0.22, 1, 0.36, 1); // easing da marca — toda transição
+$line: rgba(var(--fg-rgb), 0.1); // toda borda e separador
+$text-secondary: rgba(var(--fg-rgb), 0.55); // labels, itens inativos
+$text-dim: rgba(var(--fg-rgb), 0.45); // legendas, notas
+$fill-hover: rgba(var(--fg-rgb), 0.03); // fundo de item em hover
+$fill-active: rgba(var(--fg-rgb), 0.05); // item selecionado/ativo
+
+// Versões OPACAS dos preenchimentos (mesmo tom, misturado com o fundo):
+// para itens que não podem deixar o fundo global de anéis atravessar
+// (cards de conteúdo, categorias, blocos de artista).
+$fill-hover-solid: color-mix(in srgb, rgb(var(--fg-rgb)) 3%, rgb(var(--bg-rgb)));
+$fill-active-solid: color-mix(in srgb, rgb(var(--fg-rgb)) 5%, rgb(var(--bg-rgb)));
+
+// Dourado de texto por tema: clareado no escuro, escurecido no claro
+// (contraste); os valores finais também são interpolados no :root.
+$gold-text-dark: color.adjust($color-primary, $lightness: 22%);
+$gold-strong-dark: color.adjust($color-primary, $lightness: 28%);
+$gold-text-light: color.adjust($color-primary, $lightness: -6%);
+$gold-strong-light: color.adjust($color-primary, $lightness: -10%);
+$gold-text: var(--gold-text); // dourado claro — links ativos, destaques
+$gold-strong: var(--gold-strong); // dourado mais claro — CTAs
+
+// ============================================================
+// Mixins do padrão "blocado" (guia §3–§6)
+// ============================================================
+
+// Duas linhas horizontais de 1px (topo e base) cujas extremidades se
+// dissolvem em gradiente — motivo da marca (guia §4; origem: ComingSoonView).
+@mixin dissolved-lines($color) {
+  background-image:
+    linear-gradient(90deg, transparent 0%, $color 30%, $color 70%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, $color 30%, $color 70%, transparent 100%);
+  background-size:
+    100% 1px,
+    100% 1px;
+  background-position:
+    top center,
+    bottom center;
+  background-repeat: no-repeat;
+}
+
+// Hover "arco" (guia §4): um arco dourado de 1px nasce na base do elemento
+// e expande para cima até se dissolver — a onda sonora da marca (§5.1) em
+// gesto único. Substituiu a antiga hover-luz (2026-07-08).
+// O elemento precisa de position: relative; o recorte vem do overflow.
+// Só transform/opacity animam (GPU, sem repaint).
+@mixin hover-arc {
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 160%;
+    min-width: 140px; // itens estreitos também ganham um arco amplo
+    aspect-ratio: 1;
+    border-radius: 50%;
+    // Traço no dourado de texto (adapta por tema): o $color-primary puro é
+    // escuro demais e o arco quase sumia sobre o fundo.
+    border: 1px solid color-mix(in srgb, var(--gold-text) 90%, transparent);
+    transform: translate(-50%, 50%) scale(0);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  // Curva própria (não a $ease-brand): a da marca é muito acelerada no
+  // início e o arco cruzaria o box em ~0.3s; esta distribui o percurso,
+  // deixando a expansão visível do começo ao fim.
+  &:hover::after {
+    animation: hover-arc-rise 2s cubic-bezier(0.35, 0.1, 0.35, 1);
+  }
+
+  @keyframes hover-arc-rise {
+    0% {
+      transform: translate(-50%, 50%) scale(0.08);
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    70% {
+      opacity: 0.65;
+    }
+    100% {
+      transform: translate(-50%, 50%) scale(2.3);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:hover::after {
+      animation: none;
+    }
+  }
+}
+
+// Cores por categoria de conteúdo (tags dos pacotes): matiz FIXA por slug,
+// S/L travadas — mesma disciplina da cor por nome dos artistas (§5.1),
+// para as cores geradas conviverem com a paleta editorial.
+$category-hues: (
+  partituras: 215,  // azul — música escrita
+  musicas: 42,      // âmbar — vizinho do dourado da marca
+  cifras: 150,      // verde
+  coreografias: 335, // rosé
+);
+
+// Tag/badge de categoria: chip blocado tintado pela matiz da categoria.
+// Aplicar na classe da tag e adicionar o SLUG como classe do elemento
+// (ex.: <span class="category partituras">). Texto adapta por tema via
+// --cat-tag-l (main.scss).
+@mixin category-tag {
+  @include label-type;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  background: hsla(var(--cat-hue, 45), 45%, 50%, 0.13);
+  border: 1px solid hsla(var(--cat-hue, 45), 45%, 50%, 0.4);
+  color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
+
+  @each $slug, $hue in $category-hues {
+    &.#{$slug} {
+      --cat-hue: #{$hue};
+    }
+  }
+}
+
+// Tipografia de rótulo/nav/botão (guia §5).
+@mixin label-type {
+  font-family: $font-body;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+// Botão blocado solto na página: moldura completa, sem radius, hover-arco.
+@mixin block-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1.6rem;
+  border: 1px solid $line;
+  border-radius: 0;
+  background: none;
+  color: $text-secondary;
+  @include label-type;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.5s $ease-brand,
+    background-color 0.5s $ease-brand,
+    border-color 0.5s $ease-brand,
+    opacity 0.5s $ease-brand;
+  @include hover-arc;
+
+  &:hover {
+    color: $color-white;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+
+    &::after {
+      display: none;
+    }
+  }
+}
+
+// Botão primário: fundo dourado translúcido 0.1 → 0.22 no hover (guia §6).
+@mixin block-button-primary {
+  @include block-button;
+  border-color: rgba($color-primary, 0.45);
+  background: rgba($color-primary, 0.1);
+  color: $gold-strong;
+
+  &:hover {
+    color: $color-white;
+    background: rgba($color-primary, 0.22);
+  }
+}
+
+// Chip/aba de grupo blocado: itens colados, bordas de 1px sobrepostas por
+// margem negativa (a sobreposição mantém 1px mesmo com quebra de linha).
+@mixin block-chip {
+  position: relative;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid $line;
+  border-radius: 0;
+  margin: 0 -1px -1px 0;
+  background: none;
+  color: $text-secondary;
+  @include label-type;
+  cursor: pointer;
+  transition:
+    color 0.5s $ease-brand,
+    background-color 0.5s $ease-brand;
+  @include hover-arc;
+
+  &:hover {
+    color: $color-white;
+    z-index: 1;
+  }
+
+  &.active {
+    color: $gold-text;
+    background: $fill-active;
+    z-index: 1;
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+
+    &::after {
+      display: none;
+    }
+  }
+}
+
+// Onda sonora dos blocos de artista (Home/Artistas): 16 anéis concêntricos
+// de 1px na cor do artista (--artist-hue, definida inline pelo hash do nome),
+// centrados no avatar e esmaecendo até a moldura. O bloco que incluir isto
+// precisa de position: relative + overflow: hidden, do markup
+// `.waves > .wave.wave-1..16` e de disparar a animação no hover:
+//   &:hover .wave { animation: sound-wave 1.8s $ease-brand infinite; }
+@mixin artist-waves($avatar-size: 56px, $center-top: calc(2rem + 28px)) {
+  .waves {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .wave {
+    position: absolute;
+    left: 50%;
+    top: $center-top; // centro do avatar
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid hsla(var(--artist-hue), 50%, 52%, 0.9);
+  }
+
+  // Diâmetros em passos curtos (anéis densos); opacidade e atraso da onda
+  // escalonados pelo índice (atrasos negativos = onda já em movimento).
+  @for $i from 1 through 16 {
+    .wave-#{$i} {
+      $d: $avatar-size + $i * 22px;
+      width: $d;
+      height: $d;
+      --o: #{0.42 - ($i - 1) * 0.026};
+      opacity: var(--o);
+      animation-delay: #{($i - 1) * -0.1125}s;
+    }
+  }
+
+  // Cada anel nasce mais perto do avatar, expande além do próprio raio e
+  // se dissolve — em cascata, as ondas se propagam pelo bloco inteiro.
+  @keyframes sound-wave {
+    0% {
+      transform: translate(-50%, -50%) scale(0.72);
+      opacity: 0;
+    }
+    30% {
+      opacity: calc(var(--o) + 0.25);
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1.12);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wave {
+      animation: none !important;
+    }
+  }
+}
+
+// Input/textarea/select blocado: fundo branco 5%, borda linha, sem radius (guia §6).
+@mixin block-input {
+  padding: 0.65rem 1rem;
+  border: 1px solid $line;
+  border-radius: 0;
+  background: $fill-active;
+  color: $color-white;
+  font-family: $font-body;
+  font-size: 0.95rem;
+  transition:
+    border-color 0.5s $ease-brand,
+    background-color 0.5s $ease-brand;
+
+  &::placeholder {
+    color: rgba(var(--fg-rgb), 0.4);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba($color-primary, 0.6);
+  }
+}

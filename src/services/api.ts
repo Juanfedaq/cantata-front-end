@@ -17,6 +17,11 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+/** URL pública de um preview/capa salvo pelo backend (ex.: "covers/abc.png"). */
+export function fileUrl(path: string | null | undefined): string | null {
+  return path ? `${BASE_URL}/files/${path}` : null
+}
+
 // Chamado quando uma requisição autenticada recebe 401 (sessão inválida
 // ou expirada). O store de auth registra o logout aqui — evita import
 // circular entre api.ts e o store.
@@ -45,8 +50,11 @@ interface RequestOptions {
 export async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false } = options
 
+  // FormData (upload de arquivos) vai como multipart — o browser define o
+  // Content-Type com o boundary; JSON é serializado manualmente.
+  const isForm = body instanceof FormData
   const headers: Record<string, string> = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (auth) {
     const token = getToken()
     if (token) headers['Authorization'] = `Bearer ${token}`
@@ -57,7 +65,7 @@ export async function request<T = unknown>(path: string, options: RequestOptions
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
     })
   } catch {
     throw new ApiError('Não foi possível conectar ao servidor. Tente novamente.', 0)
@@ -84,6 +92,11 @@ export interface AuthUser {
   name: string | null
   email: string
   emailVerified: boolean
+  isAdmin?: boolean
+  isArtist?: boolean
+  bio?: string | null
+  avatarPath?: string | null
+  stripeOnboardingComplete?: boolean
 }
 
 export const authApi = {
@@ -106,4 +119,370 @@ export const authApi = {
     request<{ message: string }>('/auth/reset-password', { method: 'POST', body: payload }),
 
   me: () => request<{ user: AuthUser }>('/me', { auth: true }),
+}
+
+// ---- Tipos do domínio -------------------------------------------------------
+
+export interface Category {
+  id: number
+  slug: string
+  name: string
+}
+
+export type SubcategoryType = 'instrumento' | 'genero' | 'dificuldade'
+
+export interface Subcategory {
+  id: number
+  type: SubcategoryType
+  name: string
+}
+
+// Referência de categoria usada nas tags das obras (pacotes).
+export interface CategoryRef {
+  id?: number
+  slug: string
+  name: string
+}
+
+// Item de um pacote: uma categoria preenchida da obra, com a própria prévia.
+export interface ContentItem {
+  id: number
+  category: CategoryRef
+  previewPath: string
+  fileName: string | null
+  fileSize?: number | null
+}
+
+export interface CatalogItem {
+  id: number
+  title: string
+  priceCents: number
+  coverPath: string | null
+  publishedAt: string | null
+  categories: CategoryRef[]
+  artist: { id: number; name: string | null }
+}
+
+export interface CatalogDetail {
+  id: number
+  title: string
+  description: string | null
+  priceCents: number
+  coverPath: string | null
+  publishedAt: string | null
+  items: ContentItem[]
+  categories: CategoryRef[]
+  artist: { id: number; name: string | null; bio: string | null }
+  subcategories: Subcategory[]
+  purchasable: boolean
+}
+
+export type ContentStatus = 'rascunho' | 'em_revisao' | 'aprovado' | 'reprovado'
+
+export interface MyContent {
+  id: number
+  title: string
+  description: string | null
+  priceCents: number
+  status: ContentStatus
+  rejectionReason: string | null
+  coverPath: string | null
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  items: ContentItem[]
+  categories: CategoryRef[]
+}
+
+export interface ArtistSummary {
+  id: number
+  name: string | null
+  bio: string | null
+  avatarPath: string | null
+  publishedCount: number
+}
+
+export interface Purchase {
+  id: number
+  amountCents: number
+  purchasedAt: string
+  content: {
+    id: number
+    title: string
+    coverPath: string | null
+    items: { id: number; category: CategoryRef; fileName: string | null }[]
+    artist: { id: number; name: string | null }
+  }
+}
+
+// ---- Catálogo / categorias / artistas (públicos) ------------------------------
+
+export const catalogApi = {
+  categories: () =>
+    request<{ categories: Category[]; subcategories: Subcategory[] }>('/categories'),
+
+  list: (params: {
+    page?: number
+    perPage?: number
+    category?: string
+    subcategories?: number[]
+    q?: string
+  } = {}) => {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', String(params.page))
+    if (params.perPage) query.set('perPage', String(params.perPage))
+    if (params.category) query.set('category', params.category)
+    if (params.subcategories?.length) query.set('subcategories', params.subcategories.join(','))
+    if (params.q) query.set('q', params.q)
+    const qs = query.toString()
+    return request<{
+      items: CatalogItem[]
+      page: number
+      perPage: number
+      total: number
+      totalPages: number
+    }>(`/catalog${qs ? `?${qs}` : ''}`)
+  },
+
+  detail: (id: number | string) => request<{ content: CatalogDetail }>(`/catalog/${id}`),
+}
+
+export const artistsApi = {
+  // order 'recentes' = últimos cadastrados (home); padrão do backend: mais publicados.
+  list: (params: { order?: 'recentes'; limit?: number } = {}) => {
+    const query = new URLSearchParams()
+    if (params.order) query.set('order', params.order)
+    if (params.limit) query.set('limit', String(params.limit))
+    const qs = query.toString()
+    return request<{ artists: ArtistSummary[] }>(`/artists${qs ? `?${qs}` : ''}`)
+  },
+
+  profile: (id: number | string) =>
+    request<{
+      artist: { id: number; name: string | null; bio: string | null; avatarPath: string | null }
+      contents: Omit<CatalogItem, 'artist'>[]
+    }>(`/artists/${id}`),
+
+  // Foto de perfil do artista (campo multipart 'avatar').
+  uploadAvatar: (file: File) => {
+    const form = new FormData()
+    form.set('avatar', file)
+    return request<{ avatarPath: string }>('/artists/avatar', {
+      method: 'PUT',
+      body: form,
+      auth: true,
+    })
+  },
+
+  removeAvatar: () =>
+    request<{ message: string }>('/artists/avatar', { method: 'DELETE', auth: true }),
+
+  upgrade: (bio?: string) =>
+    request<{ message: string }>('/artists/upgrade', { method: 'POST', body: { bio }, auth: true }),
+
+  updateProfile: (bio: string) =>
+    request<{ message: string }>('/artists/profile', { method: 'PUT', body: { bio }, auth: true }),
+
+  stripeOnboarding: () =>
+    request<{ url: string }>('/artists/stripe/onboarding', { method: 'POST', auth: true }),
+
+  stripeStatus: () =>
+    request<{ onboardingComplete: boolean; hasAccount: boolean }>('/artists/stripe/status', {
+      auth: true,
+    }),
+
+  // ---- Contrato do artista (aceite obrigatório antes de publicar) ----
+
+  contract: () => request<ArtistContract>('/artists/contract', { auth: true }),
+
+  acceptContract: (version: string) =>
+    request<{ message: string; version: string }>('/artists/contract/accept', {
+      method: 'POST',
+      body: { version },
+      auth: true,
+    }),
+
+  // Simulação de repasse (transparência de preço): mesma função do checkout.
+  simulateFees: (priceCents: number) =>
+    request<FeeSimulation>(`/artists/fees/simulate?priceCents=${priceCents}`, { auth: true }),
+}
+
+export interface ArtistContract {
+  version: string
+  markdown: string
+  acceptedVersion: string | null
+  acceptedAt: string | null
+  upToDate: boolean
+}
+
+export interface FeeSimulation {
+  valorBrutoCents: number
+  taxaProcessamentoCents: number
+  comissaoPlataformaCents: number
+  valorLiquidoArtistaCents: number
+  percentAplicado: number
+  pisoAplicado: boolean
+  tipo: 'venda' | 'gorjeta'
+  assinaturaAtiva: boolean
+  config: {
+    standardPercent: number
+    subscribedPercent: number
+    minFeeCents: number
+    gatewayPercent: number
+    gatewayFixedCents: number
+  }
+}
+
+// ---- Conteúdos do artista -------------------------------------------------------
+
+export const contentsApi = {
+  mine: () => request<{ contents: MyContent[] }>('/contents/mine', { auth: true }),
+
+  create: (form: FormData) =>
+    request<{ message: string; contentId: number }>('/contents', {
+      method: 'POST',
+      body: form,
+      auth: true,
+    }),
+
+  update: (id: number, form: FormData) =>
+    request<{ message: string }>(`/contents/${id}`, { method: 'PUT', body: form, auth: true }),
+
+  remove: (id: number) =>
+    request<{ message: string }>(`/contents/${id}`, { method: 'DELETE', auth: true }),
+}
+
+// ---- Compras ----------------------------------------------------------------------
+
+export const purchasesApi = {
+  checkout: (contentId: number) =>
+    request<{ url: string }>('/purchases/checkout', {
+      method: 'POST',
+      body: { contentId },
+      auth: true,
+    }),
+
+  mine: () => request<{ purchases: Purchase[] }>('/purchases/mine', { auth: true }),
+
+  /**
+   * Download do arquivo completo (rota autenticada — precisa do header, então
+   * baixa via fetch e dispara o save pelo blob).
+   */
+  // Baixa UM item do pacote (itemId de content_items); pacote de 1 item
+  // dispensa o itemId.
+  async download(contentId: number, itemId?: number | null, suggestedName?: string | null): Promise<void> {
+    const token = getToken()
+    const qs = itemId ? `?item=${itemId}` : ''
+    const res = await fetch(`${BASE_URL}/purchases/content/${contentId}/download${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new ApiError(data.error ?? 'Erro ao baixar o arquivo.', res.status)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = suggestedName || 'conteudo'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
+}
+
+// ---- Admin ---------------------------------------------------------------------------
+
+export interface AdminUser {
+  id: number
+  name: string | null
+  email: string
+  emailVerified: boolean
+  isAdmin: boolean
+  isArtist: boolean
+  stripeOnboardingComplete: boolean
+  createdAt: string
+}
+
+export interface AdminContent {
+  id: number
+  title: string
+  description: string | null
+  priceCents: number
+  status: ContentStatus
+  rejectionReason: string | null
+  coverPath: string | null
+  createdAt: string
+  updatedAt: string
+  items: ContentItem[]
+  artist: { id: number; name: string | null; email: string }
+}
+
+export interface AdminPurchase {
+  id: number
+  amountCents: number
+  platformFeeCents: number
+  status: 'pendente' | 'pago' | 'reembolsado'
+  createdAt: string
+  content: { id: number; title: string }
+  buyer: { id: number; name: string | null; email: string }
+  artist: { id: number; name: string | null }
+}
+
+export const adminApi = {
+  users: (params: { page?: number; q?: string } = {}) => {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', String(params.page))
+    if (params.q) query.set('q', params.q)
+    const qs = query.toString()
+    return request<{ users: AdminUser[]; page: number; perPage: number; total: number }>(
+      `/admin/users${qs ? `?${qs}` : ''}`,
+      { auth: true },
+    )
+  },
+
+  contents: (status: ContentStatus = 'em_revisao') =>
+    request<{ contents: AdminContent[] }>(`/admin/contents?status=${status}`, { auth: true }),
+
+  approve: (id: number) =>
+    request<{ message: string }>(`/admin/contents/${id}/approve`, { method: 'POST', auth: true }),
+
+  reject: (id: number, reason: string) =>
+    request<{ message: string }>(`/admin/contents/${id}/reject`, {
+      method: 'POST',
+      body: { reason },
+      auth: true,
+    }),
+
+  purchases: (params: { page?: number } = {}) => {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', String(params.page))
+    const qs = query.toString()
+    return request<{ purchases: AdminPurchase[]; page: number; perPage: number; total: number }>(
+      `/admin/purchases${qs ? `?${qs}` : ''}`,
+      { auth: true },
+    )
+  },
+
+  createSubcategory: (type: SubcategoryType, name: string) =>
+    request<{ subcategory: Subcategory }>('/categories/subcategories', {
+      method: 'POST',
+      body: { type, name },
+      auth: true,
+    }),
+
+  updateSubcategory: (id: number, payload: { name?: string; active?: boolean }) =>
+    request<{ message: string }>(`/categories/subcategories/${id}`, {
+      method: 'PUT',
+      body: payload,
+      auth: true,
+    }),
+}
+
+// ---- Utilidades -------------------------------------------------------------------
+
+/** Formata centavos como moeda brasileira (ex.: 1990 → "R$ 19,90"). */
+export function formatPrice(cents: number): string {
+  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }

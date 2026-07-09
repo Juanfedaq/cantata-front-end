@@ -23,7 +23,8 @@ async function onSubmit() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    const redirect = (route.query.redirect as string) || '/dashboard'
+    // Sem dashboard: depois do login o usuário volta para a home real.
+    const redirect = (route.query.redirect as string) || '/inicio'
     router.push(redirect)
   } catch (err) {
     if (err instanceof ApiError) {

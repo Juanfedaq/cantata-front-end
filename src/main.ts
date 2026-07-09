@@ -19,11 +19,15 @@ import '@/assets/styles/main.scss'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from '@/stores/auth'
+import { setupSmoothScroll } from './scroll'
 
 const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+
+// Scroll suave da plataforma toda (não instancia sob prefers-reduced-motion).
+setupSmoothScroll()
 
 // Revalida a sessão persistida contra o servidor (não bloqueia a montagem).
 useAuthStore().bootstrap()

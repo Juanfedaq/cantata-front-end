@@ -1,6 +1,7 @@
 // Estilos compartilhados dos formulários de autenticação.
 // Globais (importados no main.scss) para serem usados em qualquer view.
-@use 'sass:color';
+// Segue o padrão blocado do guia (docs/guia-de-estilo.md): sem radius,
+// bordas $line, mixins centralizados em _variables.scss.
 @use 'variables' as *;
 
 .auth-form {
@@ -14,104 +15,77 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.45rem;
   text-align: left;
 }
 
 .field label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: rgba($color-white, 0.75);
+  @include label-type;
+  color: $text-secondary;
 }
 
 .input {
+  @include block-input;
   width: 100%;
-  padding: 0.75rem 0.9rem;
-  font-family: $font-body;
-  font-size: 0.95rem;
-  color: $color-white;
-  background: rgba($color-white, 0.04);
-  border: 1px solid rgba($color-primary, 0.25);
-  border-radius: 8px;
-  transition: border-color 0.2s, background 0.2s;
-
-  &::placeholder {
-    color: rgba($color-white, 0.35);
-  }
-  &:focus {
-    outline: none;
-    border-color: $color-primary;
-    background: rgba($color-white, 0.06);
-  }
 }
 
 .btn {
+  @include block-button-primary;
   width: 100%;
-  padding: 0.8rem 1rem;
-  font-family: $font-body;
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: $color-back;
-  background: $color-primary;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: filter 0.2s, opacity 0.2s;
-
-  &:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-  &:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
 }
 
+// Variante secundária (ex.: reenviar e-mail de confirmação):
+// moldura neutra e sem fundo, mantendo a hover-luz do botão blocado.
 .btn-ghost {
-  background: transparent;
-  color: $color-primary;
-  border: 1px solid rgba($color-primary, 0.4);
+  border-color: $line;
+  background: none;
+  color: $text-secondary;
+
+  &:hover:not(:disabled) {
+    background: none;
+    color: $color-white;
+  }
 }
 
 .alert {
   width: 100%;
-  padding: 0.7rem 0.9rem;
-  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  border: 1px solid $line;
   font-size: 0.85rem;
   line-height: 1.5;
   text-align: center;
 }
 
 .alert-error {
-  color: #ffb4b4;
-  background: rgba(180, 40, 40, 0.15);
-  border: 1px solid rgba(200, 60, 60, 0.35);
+  color: $color-error;
+  border-color: rgba($color-error, 0.4);
+  background: rgba($color-error, 0.07);
 }
 
 .alert-success {
-  color: color.adjust($color-primary, $lightness: 12%);
-  background: rgba($color-primary, 0.12);
-  border: 1px solid rgba($color-primary, 0.35);
+  color: $color-success;
+  border-color: rgba($color-success, 0.4);
+  background: rgba($color-success, 0.07);
 }
 
 .auth-links {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
   font-size: 0.85rem;
-  color: rgba($color-white, 0.65);
+  color: $text-secondary;
   text-align: center;
 }
 
 .auth-link {
-  color: $color-primary;
+  color: $gold-text;
   text-decoration: none;
   font-weight: 500;
+  transition: color 0.5s $ease-brand;
 
   &:hover {
+    color: $gold-strong;
     text-decoration: underline;
   }
 }

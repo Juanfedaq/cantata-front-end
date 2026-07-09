@@ -1,6 +1,28 @@
 @use 'variables' as *;
 @use 'auth';
 
+// Tema claro/escuro (mesmo sistema da ComingSoonView): o escuro é o padrão;
+// a store `stores/theme.ts` aplica data-theme="light" no <html> para trocar.
+// O claro só inverte figura e fundo; o dourado de texto ganha versão escura
+// para manter contraste.
+:root {
+  --bg-rgb: #{$bg-rgb-dark}; // #11100d
+  --fg-rgb: #{$fg-rgb-dark}; // #ece6d8
+  --gold-text: #{$gold-text-dark};
+  --gold-strong: #{$gold-strong-dark};
+  // Luminosidade do texto das tags de categoria (clareia no escuro,
+  // escurece no claro — mesma lógica do --gold-text).
+  --cat-tag-l: 64%;
+}
+
+:root[data-theme='light'] {
+  --bg-rgb: #{$fg-rgb-dark}; // #ece6d8
+  --fg-rgb: #{$bg-rgb-dark}; // #11100d
+  --gold-text: #{$gold-text-light};
+  --gold-strong: #{$gold-strong-light};
+  --cat-tag-l: 34%;
+}
+
 // Também expõe os tokens como CSS custom properties,
 // úteis dentro de <style> sem SCSS ou em CSS puro.
 :root {
@@ -31,4 +53,8 @@ body {
   font-family: $font-body;
   color: $color-white;
   background-color: $color-back;
+  // Troca de tema suave (mesma duração da ComingSoonView).
+  transition:
+    background-color 0.4s ease,
+    color 0.4s ease;
 }

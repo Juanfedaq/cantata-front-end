@@ -26,6 +26,8 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(loadUser())
 
   const isAuthenticated = computed(() => !!token.value)
+  const isAdmin = computed(() => !!user.value?.isAdmin)
+  const isArtist = computed(() => !!user.value?.isArtist)
 
   function persistUser(value: AuthUser) {
     user.value = value
@@ -37,6 +39,15 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = newToken
     setToken(newToken)
     persistUser(newUser)
+    // O login não devolve papéis — busca o usuário completo (isAdmin/isArtist).
+    await bootstrap()
+  }
+
+  /** Rebusca o usuário no servidor (ex.: após upgrade para artista). */
+  async function refresh() {
+    if (!token.value) return
+    const { user: fresh } = await authApi.me()
+    persistUser(fresh)
   }
 
   function logout() {
@@ -64,5 +75,5 @@ export const useAuthStore = defineStore('auth', () => {
   // Qualquer 401 em chamada autenticada derruba a sessão local.
   setOnUnauthorized(logout)
 
-  return { token, user, isAuthenticated, login, logout, bootstrap }
+  return { token, user, isAuthenticated, isAdmin, isArtist, login, logout, bootstrap, refresh }
 })
