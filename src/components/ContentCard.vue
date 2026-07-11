@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CategoryIcon from '@/components/CategoryIcon.vue'
 import { fileUrl, formatPrice, type CategoryRef } from '@/services/api'
 
 // Obras são pacotes: `categories` são as tags do que o pacote inclui.
@@ -21,7 +22,17 @@ defineProps<{
     </div>
     <div class="body">
       <span class="tags">
-        <span v-for="cat in categories" :key="cat.slug" class="category" :class="cat.slug">{{ cat.name }}</span>
+        <span
+          v-for="cat in categories"
+          :key="cat.slug"
+          class="category"
+          :class="cat.slug"
+          role="img"
+          :aria-label="cat.name"
+          :title="cat.name"
+        >
+          <CategoryIcon :slug="cat.slug" :size="18" />
+        </span>
       </span>
       <h3 class="title">{{ title }}</h3>
       <p v-if="artistName" class="artist">{{ artistName }}</p>
@@ -81,17 +92,25 @@ defineProps<{
   gap: 0.25rem;
 }
 
-// Tags das categorias do pacote: chips blocados com cor por categoria
-// (mixin global category-tag — matiz fixa por slug, guia §5.1).
+// Categorias do pacote: só o ícone na tinta da categoria (matiz fixa por
+// slug, guia §5.1; lightness por tema via --cat-tag-l, como as tags
+// antigas) — o nome fica no title/aria-label.
 .tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.5rem;
   margin-bottom: 0.2rem;
 }
 
 .category {
-  @include category-tag;
+  display: inline-flex;
+  color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
+
+  @each $slug, $hue in $category-hues {
+    &.#{$slug} {
+      --cat-hue: #{$hue};
+    }
+  }
 }
 
 .title {

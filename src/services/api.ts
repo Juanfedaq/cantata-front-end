@@ -248,11 +248,15 @@ export const catalogApi = {
 }
 
 export const artistsApi = {
-  // order 'recentes' = últimos cadastrados (home); padrão do backend: mais publicados.
-  list: (params: { order?: 'recentes'; limit?: number } = {}) => {
+  // order 'recentes' = últimos cadastrados (home), 'nome' = alfabética;
+  // padrão do backend: mais publicados. q busca em nome/bio; categoria =
+  // slug (só artistas com obra aprovada naquela categoria).
+  list: (params: { order?: 'recentes' | 'nome'; limit?: number; q?: string; categoria?: string } = {}) => {
     const query = new URLSearchParams()
     if (params.order) query.set('order', params.order)
     if (params.limit) query.set('limit', String(params.limit))
+    if (params.q) query.set('q', params.q)
+    if (params.categoria) query.set('categoria', params.categoria)
     const qs = query.toString()
     return request<{ artists: ArtistSummary[] }>(`/artists${qs ? `?${qs}` : ''}`)
   },

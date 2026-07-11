@@ -69,58 +69,43 @@ $gold-strong: var(--gold-strong); // dourado mais claro — CTAs
   background-repeat: no-repeat;
 }
 
-// Hover "arco" (guia §4): um arco dourado de 1px nasce na base do elemento
-// e expande para cima até se dissolver — a onda sonora da marca (§5.1) em
-// gesto único. Substituiu a antiga hover-luz (2026-07-08).
+// Hover "luz" (guia §4): um degradê dourado concentrado na base do elemento
+// sobe e acende enquanto o cursor está sobre ele, e desce/apaga na saída —
+// transition (não animation) para o gesto reverter suave no unhover.
+// Substituiu o hover-arc (2026-07-11).
 // O elemento precisa de position: relative; o recorte vem do overflow.
 // Só transform/opacity animam (GPU, sem repaint).
-@mixin hover-arc {
+@mixin hover-light {
   overflow: hidden;
 
   &::after {
     content: "";
     position: absolute;
-    left: 50%;
-    bottom: 0;
-    width: 160%;
-    min-width: 140px; // itens estreitos também ganham um arco amplo
-    aspect-ratio: 1;
-    border-radius: 50%;
-    // Traço no dourado de texto (adapta por tema): o $color-primary puro é
-    // escuro demais e o arco quase sumia sobre o fundo.
-    border: 1px solid color-mix(in srgb, var(--gold-text) 90%, transparent);
-    transform: translate(-50%, 50%) scale(0);
+    inset: 0;
+    // Luz no dourado de texto (adapta por tema): halo CIRCULAR nascendo do
+    // centro da base, dissolvendo radialmente — como uma fonte de luz sob
+    // o elemento, não uma faixa reta.
+    background: radial-gradient(
+      circle at 50% 100%,
+      color-mix(in srgb, var(--gold-text) 22%, transparent),
+      transparent 70%
+    );
     opacity: 0;
+    transform: translateY(40%);
+    transition: opacity 0.6s $ease-brand, transform 0.6s $ease-brand;
     pointer-events: none;
   }
 
-  // Curva própria (não a $ease-brand): a da marca é muito acelerada no
-  // início e o arco cruzaria o box em ~0.3s; esta distribui o percurso,
-  // deixando a expansão visível do começo ao fim.
   &:hover::after {
-    animation: hover-arc-rise 2s cubic-bezier(0.35, 0.1, 0.35, 1);
+    opacity: 1;
+    transform: translateY(0);
   }
 
-  @keyframes hover-arc-rise {
-    0% {
-      transform: translate(-50%, 50%) scale(0.08);
-      opacity: 0;
-    }
-    12% {
-      opacity: 1;
-    }
-    70% {
-      opacity: 0.65;
-    }
-    100% {
-      transform: translate(-50%, 50%) scale(2.3);
-      opacity: 0;
-    }
-  }
-
+  // Sem movimento: a luz só acende/apaga (fade).
   @media (prefers-reduced-motion: reduce) {
-    &:hover::after {
-      animation: none;
+    &::after {
+      transform: none;
+      transition: opacity 0.6s $ease-brand;
     }
   }
 }
@@ -164,7 +149,7 @@ $category-hues: (
   letter-spacing: 0.16em;
 }
 
-// Botão blocado solto na página: moldura completa, sem radius, hover-arco.
+// Botão blocado solto na página: moldura completa, sem radius, hover-luz.
 @mixin block-button {
   position: relative;
   display: inline-flex;
@@ -185,7 +170,7 @@ $category-hues: (
     background-color 0.5s $ease-brand,
     border-color 0.5s $ease-brand,
     opacity 0.5s $ease-brand;
-  @include hover-arc;
+  @include hover-light;
 
   &:hover {
     color: $color-white;
@@ -229,7 +214,7 @@ $category-hues: (
   transition:
     color 0.5s $ease-brand,
     background-color 0.5s $ease-brand;
-  @include hover-arc;
+  @include hover-light;
 
   &:hover {
     color: $color-white;

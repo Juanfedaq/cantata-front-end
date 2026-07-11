@@ -171,7 +171,7 @@ $ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
 $line: rgba(var(--fg-rgb), 0.1);
 
 // Item blocado: base compartilhada por links e botões das três zonas.
-// Hover: arco dourado que expande da base (mixin global hover-arc, guia §4).
+// Hover: luz dourada que sobe da base (mixin global hover-light, guia §4).
 @mixin block-item {
   position: relative;
   display: flex;
@@ -186,7 +186,7 @@ $line: rgba(var(--fg-rgb), 0.1);
   letter-spacing: 0.16em;
   white-space: nowrap;
   transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
-  @include hover-arc;
+  @include hover-light;
 
   &:hover {
     color: $color-white;
@@ -278,7 +278,8 @@ $line: rgba(var(--fg-rgb), 0.1);
   }
 
   // Painel blocado (guia §3): moldura de 1px, itens colados separados por
-  // linha, mesmo vidro do header. Alinhado à borda direita do botão.
+  // linha, fundo OPACO (sem o vidro translúcido — o conteúdo da página
+  // não atravessa o painel). Alinhado à borda direita do botão.
   .dropdown {
     position: absolute;
     top: 100%;
@@ -287,9 +288,7 @@ $line: rgba(var(--fg-rgb), 0.1);
     display: flex;
     flex-direction: column;
     border: 1px solid $line;
-    background: rgba(var(--bg-rgb), 0.88);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: rgb(var(--bg-rgb));
 
     > a,
     > .item-btn {

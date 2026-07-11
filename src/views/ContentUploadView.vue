@@ -53,6 +53,11 @@ const error = ref('')
 // é bloqueada (o backend também bloqueia — isto é só a UX).
 const contractOk = ref<boolean | null>(null) // null = carregando
 
+// Cadastro de pagamentos (Stripe): sem o onboarding completo, a obra só
+// pode ser salva como RASCUNHO (o backend também bloqueia — isto é só a
+// UX). null = indefinido (ex.: Stripe fora do ar) — deixa o backend decidir.
+const stripeOk = ref<boolean | null>(null)
+
 const SUB_TYPE_LABELS: Record<SubcategoryType, string> = {
   instrumento: 'Instrumento',
   genero: 'Gênero',
@@ -117,6 +122,13 @@ onMounted(async () => {
     contractOk.value = (await artistsApi.contract()).upToDate
   } catch {
     contractOk.value = null // indefinido: deixa o backend decidir no envio
+  }
+
+  // Onboarding do Stripe completo? Sem ele, só rascunho.
+  try {
+    stripeOk.value = (await artistsApi.stripeStatus()).onboardingComplete
+  } catch {
+    stripeOk.value = null // indefinido: deixa o backend decidir no envio
   }
 
   try {
@@ -185,6 +197,11 @@ function toggleSub(id: number) {
 async function submit(asDraft: boolean) {
   error.value = ''
 
+  if (!asDraft && stripeOk.value === false) {
+    return (error.value =
+      'Complete seu cadastro de pagamentos (Stripe) para enviar obras à revisão. Enquanto isso, salve como rascunho.')
+  }
+
   const priceCents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
   if (!title.value.trim()) return (error.value = 'Informe o título.')
 
@@ -231,6 +248,11 @@ async function submit(asDraft: boolean) {
       router.push({ path: '/contrato', query: { redirect: route.fullPath } })
       return
     }
+    // Sem onboarding do Stripe, o backend nega o envio à revisão — acende
+    // o aviso com o link do cadastro (o rascunho continua liberado).
+    if (err instanceof ApiError && err.code === 'STRIPE_ONBOARDING_REQUIRED') {
+      stripeOk.value = false
+    }
     error.value = err instanceof Error ? err.message : 'Erro ao enviar a obra.'
     sending.value = false
   }
@@ -255,6 +277,15 @@ async function submit(asDraft: boolean) {
       <RouterLink :to="{ path: '/contrato', query: { redirect: route.fullPath } }" class="contract-btn">
         Ler e aceitar os termos
       </RouterLink>
+    </div>
+
+    <!-- Sem onboarding do Stripe: só rascunho (a revisão fica bloqueada) -->
+    <div v-if="stripeOk === false" class="contract-warn">
+      <p>
+        💳 Sem seu <strong>cadastro de pagamentos (Stripe)</strong>, a obra só pode ser salva
+        como rascunho — complete o cadastro para enviar à revisão e vender.
+      </p>
+      <RouterLink to="/artista/stripe" class="contract-btn">Completar cadastro</RouterLink>
     </div>
 
     <form class="form" @submit.prevent="submit(false)">
@@ -377,7 +408,11 @@ async function submit(asDraft: boolean) {
       <p v-if="error" class="error">{{ error }}</p>
 
       <div class="actions">
-        <button type="submit" class="primary" :disabled="sending || contractOk === false">
+        <button
+          type="submit"
+          class="primary"
+          :disabled="sending || contractOk === false || stripeOk === false"
+        >
           {{ sending ? 'Enviando…' : 'Enviar para revisão' }}
         </button>
         <button

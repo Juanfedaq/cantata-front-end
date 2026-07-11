@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { motion, MotionConfig } from 'motion-v'
 import AppLayout from '@/components/AppLayout.vue'
 import ContentCard from '@/components/ContentCard.vue'
+import CategoryIcon from '@/components/CategoryIcon.vue'
 import {
   catalogApi,
   type CatalogItem,
@@ -13,6 +15,21 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+
+// Card animável (motion.create repassa props/attrs — estilo intacto).
+const MotionContentCard = motion.create(ContentCard)
+
+// Mesma entrada da Home: véu + subida no easing da marca ao entrar na
+// tela (uma vez). `delay` escalona os cards; `y` menor em itens pequenos.
+const easeBrand = [0.22, 1, 0.36, 1]
+function rise(delay = 0, y = 24) {
+  return {
+    initial: { opacity: 0, y },
+    whileInView: { opacity: 1, y: 0 },
+    inViewOptions: { once: true },
+    transition: { duration: 0.7, ease: easeBrand, delay },
+  }
+}
 
 const categories = ref<Category[]>([])
 const subcategories = ref<Subcategory[]>([])
@@ -96,61 +113,85 @@ onMounted(async () => {
 
 <template>
   <AppLayout>
-    <h1 class="page-title">Biblioteca</h1>
+    <!-- Entradas com motion-v (mesma linguagem da Home): título, toolbar e
+         grupos de filtro sobem em cascata; cards do grid escalonam e, nas
+         trocas de filtro, os que permanecem deslizam para a nova posição
+         (layout). reduced-motion="user" respeita prefers-reduced-motion. -->
+    <MotionConfig reduced-motion="user">
+      <motion.h1 class="page-title" v-bind="rise()">Biblioteca</motion.h1>
 
-    <!-- Busca + filtro de categoria -->
-    <div class="toolbar">
-      <input v-model.lazy="q" type="search" class="search" placeholder="Buscar por título ou artista…" />
-      <div class="chips">
-        <button
-          v-for="cat in categories"
-          :key="cat.id"
-          class="chip"
-          :class="{ active: selectedCategory === cat.slug }"
-          @click="selectCategory(cat.slug)"
-        >
-          {{ cat.name }}
-        </button>
-      </div>
-    </div>
+      <!-- Busca + filtro de categoria -->
+      <motion.div class="toolbar" v-bind="rise(0.08)">
+        <input v-model.lazy="q" type="search" class="search" placeholder="Buscar por título ou artista…" />
+        <div class="chips">
+          <!-- "Todos" limpa o filtro de categoria (ativo quando nenhum slug
+               está selecionado); o ícone é a nota genérica do CategoryIcon. -->
+          <button
+            class="chip"
+            :class="{ active: selectedCategory === '' }"
+            @click="selectCategory('')"
+          >
+            <CategoryIcon class="chip-icon" slug="todos" :size="16" />
+            Todos
+          </button>
+          <button
+            v-for="cat in categories"
+            :key="cat.id"
+            class="chip"
+            :class="[cat.slug, { active: selectedCategory === cat.slug }]"
+            @click="selectCategory(cat.slug)"
+          >
+            <CategoryIcon class="chip-icon" :slug="cat.slug" :size="16" />
+            {{ cat.name }}
+          </button>
+        </div>
+      </motion.div>
 
-    <!-- Filtros por subcategoria -->
-    <div v-for="group in subsByType" :key="group.type" class="sub-group">
-      <span class="sub-label">{{ group.label }}:</span>
-      <button
-        v-for="sub in group.items"
-        :key="sub.id"
-        class="chip small"
-        :class="{ active: selectedSubs.includes(sub.id) }"
-        @click="toggleSub(sub.id)"
+      <!-- Filtros por subcategoria -->
+      <motion.div
+        v-for="(group, gi) in subsByType"
+        :key="group.type"
+        class="sub-group"
+        v-bind="rise(0.14 + gi * 0.06)"
       >
-        {{ sub.name }}
-      </button>
-    </div>
+        <span class="sub-label">{{ group.label }}:</span>
+        <button
+          v-for="sub in group.items"
+          :key="sub.id"
+          class="chip small"
+          :class="{ active: selectedSubs.includes(sub.id) }"
+          @click="toggleSub(sub.id)"
+        >
+          {{ sub.name }}
+        </button>
+      </motion.div>
 
-    <p v-if="loading" class="muted">Carregando…</p>
-    <p v-else-if="error" class="error">{{ error }}</p>
-    <p v-else-if="!items.length" class="muted">Nenhum conteúdo encontrado com esses filtros.</p>
+      <p v-if="loading" class="muted">Carregando…</p>
+      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-else-if="!items.length" class="muted">Nenhum conteúdo encontrado com esses filtros.</p>
 
-    <div v-else class="grid">
-      <ContentCard
-        v-for="item in items"
-        :key="item.id"
-        :id="item.id"
-        :title="item.title"
-        :price-cents="item.priceCents"
-        :cover-path="item.coverPath"
-        :categories="item.categories"
-        :artist-name="item.artist.name"
-      />
-    </div>
+      <div v-else class="grid">
+        <MotionContentCard
+          v-for="(item, i) in items"
+          :key="item.id"
+          :id="item.id"
+          :title="item.title"
+          :price-cents="item.priceCents"
+          :cover-path="item.coverPath"
+          :categories="item.categories"
+          :artist-name="item.artist.name"
+          :layout="true"
+          v-bind="rise(i * 0.05, 18)"
+        />
+      </div>
 
-    <!-- Paginação tradicional (decisão registrada no PROGRESS.md) -->
-    <div v-if="totalPages > 1" class="pagination">
-      <button class="page-btn" :disabled="page <= 1" @click="page--">← Anterior</button>
-      <span class="muted">Página {{ page }} de {{ totalPages }} ({{ total }} itens)</span>
-      <button class="page-btn" :disabled="page >= totalPages" @click="page++">Próxima →</button>
-    </div>
+      <!-- Paginação tradicional (decisão registrada no PROGRESS.md) -->
+      <div v-if="totalPages > 1" class="pagination">
+        <button class="page-btn" :disabled="page <= 1" @click="page--">← Anterior</button>
+        <span class="muted">Página {{ page }} de {{ totalPages }} ({{ total }} itens)</span>
+        <button class="page-btn" :disabled="page >= totalPages" @click="page++">Próxima →</button>
+      </div>
+    </MotionConfig>
   </AppLayout>
 </template>
 
@@ -184,11 +225,35 @@ onMounted(async () => {
 
 .chip {
   @include block-chip;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  // Fundo OPACO (o mixin deixa transparente e o backdrop de anéis
+  // atravessava): mesmo tom do fundo; ativo usa a versão sólida do fill.
+  background: $color-back;
+
+  &.active {
+    background: $fill-active-solid;
+  }
 
   &.small {
     padding: 0.4rem 0.85rem;
     font-size: 0.7rem;
   }
+
+  // Matiz da categoria para o ícone do chip (mesma disciplina dos cards).
+  @each $slug, $hue in $category-hues {
+    &.#{$slug} {
+      --cat-hue: #{$hue};
+    }
+  }
+}
+
+// Ícone na tinta da categoria (lightness por tema, como as tags); o chip
+// "Todos" fica sem slug e cai na matiz padrão dourada.
+.chip-icon {
+  color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
+  flex-shrink: 0;
 }
 
 // Chips diretos no contêiner: sem gap (colados); o respiro fica só
