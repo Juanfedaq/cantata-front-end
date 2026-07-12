@@ -6,19 +6,24 @@ import { defineStore } from 'pinia'
 type Theme = 'dark' | 'light'
 const THEME_KEY = 'cantata-theme'
 
-export const useThemeStore = defineStore('theme', () => {
-  // Prioridade: ?theme= na URL > escolha salva > preferência do sistema.
+// Prioridade: ?theme= na URL > escolha salva > preferência do sistema.
+// Na pré-renderização (Node, sem window) fica o escuro padrão — o valor
+// real é resolvido no browser assim que o app monta.
+function resolveInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark'
   const fromQuery = new URLSearchParams(window.location.search).get('theme')
   const stored = localStorage.getItem(THEME_KEY)
-  const theme = ref<Theme>(
-    fromQuery === 'light' || fromQuery === 'dark'
-      ? fromQuery
-      : stored === 'light' || stored === 'dark'
-        ? stored
-        : window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark',
-  )
+  return fromQuery === 'light' || fromQuery === 'dark'
+    ? fromQuery
+    : stored === 'light' || stored === 'dark'
+      ? stored
+      : window.matchMedia('(prefers-color-scheme: light)').matches
+        ? 'light'
+        : 'dark'
+}
+
+export const useThemeStore = defineStore('theme', () => {
+  const theme = ref<Theme>(resolveInitialTheme())
 
   const isDark = computed(() => theme.value === 'dark')
 
@@ -36,6 +41,7 @@ export const useThemeStore = defineStore('theme', () => {
   watch(
     theme,
     (t) => {
+      if (typeof document === 'undefined') return // SSG: não há DOM global
       document.documentElement.dataset.theme = t
       document
         .querySelector('meta[name="theme-color"]')

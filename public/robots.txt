@@ -1,0 +1,12 @@
+# Rotas privadas/transacionais fora do índice; o resto é público.
+User-agent: *
+Allow: /
+Disallow: /perfil
+Disallow: /compras
+Disallow: /admin
+Disallow: /contrato
+Disallow: /artista/
+Disallow: /reset-password
+Disallow: /verify-email
+
+Sitemap: https://cantata.com.br/sitemap.xml

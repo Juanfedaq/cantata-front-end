@@ -6,6 +6,8 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const TOKEN_KEY = 'cantata_token'
 
 export function getToken(): string | null {
+  // Na pré-renderização (vite-ssg, Node) não há localStorage nem sessão.
+  if (typeof localStorage === 'undefined') return null
   return localStorage.getItem(TOKEN_KEY)
 }
 

@@ -15,6 +15,7 @@ export function setupSmoothScroll() {
 // Volta ao topo (usado na troca de rota): imediato, sem animar o caminho —
 // navegação não é rolagem, o suave fica para o scroll do usuário.
 export function scrollToTop() {
+  if (typeof window === 'undefined') return // pré-renderização (SSG): sem scroll
   if (lenis) lenis.scrollTo(0, { immediate: true })
   else window.scrollTo(0, 0)
 }

@@ -2,6 +2,8 @@ import { fileURLToPath, URL } from "node:url";
 
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+// Só pelos tipos: registra a chave ssgOptions no UserConfig do Vite.
+import type {} from "vite-ssg";
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
@@ -22,5 +24,14 @@ export default defineConfig(({ command }) => ({
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
+  },
+  // Pré-renderização (vite-ssg): só as rotas públicas de conteúdo estático —
+  // crawlers recebem HTML pronto sem executar JS. As demais rotas continuam
+  // SPA puras (fallback index.html); /inicio, /biblioteca e /artistas ficam
+  // de fora por dependerem de dados da API em runtime (e motion-v).
+  ssgOptions: {
+    includedRoutes: () => ["/", "/privacidade", "/login", "/register", "/forgot-password"],
+    script: "async",
+    formatting: "minify",
   },
 }));

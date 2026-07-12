@@ -12,6 +12,8 @@ import {
 const USER_KEY = 'cantata_user'
 
 function loadUser(): AuthUser | null {
+  // Pré-renderização (Node): sem localStorage — visitante anônimo.
+  if (typeof localStorage === 'undefined') return null
   const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {

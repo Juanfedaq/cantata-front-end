@@ -5,10 +5,15 @@ import AppBackdrop from '@/components/AppBackdrop.vue'
 import CookieConsent from '@/components/CookieConsent.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useDefaultSeo } from '@/composables/useSeo'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+
+// <head> por rota (título, descrição, canonical, Open Graph, robots) —
+// lê o meta das rotas; views dinâmicas refinam com usePageSeo.
+useDefaultSeo()
 
 // Instancia a store de tema já na raiz: aplica o data-theme no <html>
 // em qualquer rota (inclusive telas de auth, que não usam o AppLayout).

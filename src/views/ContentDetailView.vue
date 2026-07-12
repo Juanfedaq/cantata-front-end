@@ -4,12 +4,28 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { catalogApi, purchasesApi, fileUrl, formatPrice, type CatalogDetail } from '@/services/api'
+import { usePageSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const content = ref<CatalogDetail | null>(null)
+
+// SEO: quando a obra carrega, o <head> passa a refletir título, descrição
+// e capa reais (compartilhamento e indexação da página da partitura).
+usePageSeo({
+  title: computed(() => content.value?.title ?? null),
+  description: computed(() => {
+    const c = content.value
+    if (!c) return null
+    return (
+      c.description ??
+      `Partitura de ${c.artist.name ?? 'artista do Cantata'} — publique, descubra e adquira música escrita no Cantata.`
+    )
+  }),
+  image: computed(() => fileUrl(content.value?.coverPath)),
+})
 const loading = ref(true)
 const error = ref('')
 const buying = ref(false)

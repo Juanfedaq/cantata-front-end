@@ -1,4 +1,8 @@
-import { createApp } from 'vue'
+// ViteSSG no lugar do createApp puro: no browser é a mesma SPA de sempre;
+// no build, o vite-ssg pré-renderiza as rotas públicas estáticas em HTML
+// (SEO — crawlers recebem conteúdo pronto). As rotas ficam em @/router,
+// o head por página em @/composables/useSeo.
+import { ViteSSG } from 'vite-ssg'
 import { createPinia } from 'pinia'
 
 // Fontes (self-hosted via @fontsource)
@@ -17,19 +21,26 @@ import '@fontsource/inter/600.css'
 import '@/assets/styles/main.scss'
 
 import App from './App.vue'
-import router from './router'
+import { routes, setupRouterGuards } from './router'
 import { useAuthStore } from '@/stores/auth'
 import { setupSmoothScroll } from './scroll'
 
-const app = createApp(App)
+export const createApp = ViteSSG(
+  App,
+  { routes, base: import.meta.env.BASE_URL },
+  ({ app, router, isClient }) => {
+    const pinia = createPinia()
+    app.use(pinia)
 
-app.use(createPinia())
-app.use(router)
+    setupRouterGuards(router, pinia)
 
-// Scroll suave da plataforma toda (não instancia sob prefers-reduced-motion).
-setupSmoothScroll()
+    // Só no browser — na pré-renderização (Node) não há window nem sessão.
+    if (isClient) {
+      // Scroll suave da plataforma toda (não instancia sob prefers-reduced-motion).
+      setupSmoothScroll()
 
-// Revalida a sessão persistida contra o servidor (não bloqueia a montagem).
-useAuthStore().bootstrap()
-
-app.mount('#app')
+      // Revalida a sessão persistida contra o servidor (não bloqueia a montagem).
+      useAuthStore(pinia).bootstrap()
+    }
+  },
+)

@@ -3,12 +3,18 @@
 // armazenamento essencial (sessão, tema, este consentimento), então é um
 // aviso informativo com um único aceite. A escolha fica no localStorage
 // e o modal não volta a aparecer.
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 const STORAGE_KEY = 'cantata-cookies-aceitos'
 
-const visible = ref(!localStorage.getItem(STORAGE_KEY))
+// Começa oculto e só decide no browser (onMounted): a pré-renderização
+// (SSG) não tem localStorage, e o HTML estático não deve trazer o modal.
+const visible = ref(false)
+
+onMounted(() => {
+  visible.value = !localStorage.getItem(STORAGE_KEY)
+})
 
 function accept() {
   localStorage.setItem(STORAGE_KEY, new Date().toISOString())

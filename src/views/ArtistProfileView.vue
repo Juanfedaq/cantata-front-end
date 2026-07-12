@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
 import ContentCard from '@/components/ContentCard.vue'
-import { artistsApi, type CatalogItem } from '@/services/api'
+import { artistsApi, fileUrl, type CatalogItem } from '@/services/api'
+import { usePageSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 
@@ -17,6 +18,18 @@ const artist = ref<{
 const contents = ref<Omit<CatalogItem, 'artist'>[]>([])
 const loading = ref(true)
 const error = ref('')
+
+// SEO: com o perfil carregado, o <head> reflete nome, bio e avatar do artista.
+usePageSeo({
+  title: computed(() => artist.value?.name ?? null),
+  description: computed(() => {
+    const a = artist.value
+    if (!a) return null
+    if (a.bio) return a.bio.length > 160 ? `${a.bio.slice(0, 157)}…` : a.bio
+    return `Obras de ${a.name ?? 'artista'} no Cantata — marketplace de partituras.`
+  }),
+  image: computed(() => fileUrl(artist.value?.avatarPath)),
+})
 
 onMounted(async () => {
   try {

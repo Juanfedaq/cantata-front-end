@@ -6,17 +6,21 @@ type Theme = 'dark' | 'light'
 const THEME_KEY = 'cantata-theme'
 
 // Prioridade: ?theme= na URL > escolha salva > preferência do sistema.
-const fromQuery = new URLSearchParams(window.location.search).get('theme')
-const stored = localStorage.getItem(THEME_KEY)
-const theme = ref<Theme>(
-  fromQuery === 'light' || fromQuery === 'dark'
+// Na pré-renderização (Node, sem window) fica o escuro padrão.
+function resolveInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark'
+  const fromQuery = new URLSearchParams(window.location.search).get('theme')
+  const stored = localStorage.getItem(THEME_KEY)
+  return fromQuery === 'light' || fromQuery === 'dark'
     ? fromQuery
     : stored === 'light' || stored === 'dark'
       ? stored
       : window.matchMedia('(prefers-color-scheme: light)').matches
         ? 'light'
-        : 'dark',
-)
+        : 'dark'
+}
+
+const theme = ref<Theme>(resolveInitialTheme())
 
 const isDark = computed(() => theme.value === 'dark')
 const logoSrc = computed(() => (isDark.value ? '/logo.svg' : '/logo-black.svg'))
@@ -31,6 +35,7 @@ function toggleTheme() {
 watch(
   theme,
   (t) => {
+    if (typeof document === 'undefined') return // SSG: não há DOM global
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', t === 'dark' ? '#11100D' : '#ECE6D8')
