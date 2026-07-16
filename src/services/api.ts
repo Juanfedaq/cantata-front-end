@@ -146,13 +146,21 @@ export interface CategoryRef {
   name: string
 }
 
-// Item de um pacote: uma categoria preenchida da obra, com a própria prévia.
+// Um arquivo completo (privado) de uma categoria do pacote — o que o
+// comprador baixa. Várias por categoria (2026-07-16).
+export interface ContentFile {
+  id: number
+  fileName: string | null
+  fileSize?: number | null
+}
+
+// Item de um pacote: uma categoria preenchida da obra, com a própria
+// prévia pública e a lista de arquivos completos.
 export interface ContentItem {
   id: number
   category: CategoryRef
   previewPath: string
-  fileName: string | null
-  fileSize?: number | null
+  files: ContentFile[]
 }
 
 export interface CatalogItem {
@@ -187,11 +195,17 @@ export interface MyContent {
   description: string | null
   priceCents: number
   status: ContentStatus
+  /** Oculta das vitrines públicas (compradores mantêm acesso). */
+  hidden: boolean
   rejectionReason: string | null
   coverPath: string | null
   publishedAt: string | null
   createdAt: string
   updatedAt: string
+  /** Compras pagas desta obra. */
+  salesCount: number
+  /** Líquido acumulado do artista (centavos, valores congelados na venda). */
+  salesNetCents: number
   items: ContentItem[]
   categories: CategoryRef[]
 }
@@ -212,7 +226,7 @@ export interface Purchase {
     id: number
     title: string
     coverPath: string | null
-    items: { id: number; category: CategoryRef; fileName: string | null }[]
+    items: { id: number; category: CategoryRef; files: ContentFile[] }[]
     artist: { id: number; name: string | null }
   }
 }
@@ -329,10 +343,8 @@ export interface FeeSimulation {
   percentAplicado: number
   pisoAplicado: boolean
   tipo: 'venda' | 'gorjeta'
-  assinaturaAtiva: boolean
   config: {
     standardPercent: number
-    subscribedPercent: number
     minFeeCents: number
     gatewayPercent: number
     gatewayFixedCents: number
@@ -356,6 +368,14 @@ export const contentsApi = {
 
   remove: (id: number) =>
     request<{ message: string }>(`/contents/${id}`, { method: 'DELETE', auth: true }),
+
+  // Oculta/reexibe a obra nas vitrines públicas (compradores mantêm acesso).
+  setHidden: (id: number, hidden: boolean) =>
+    request<{ message: string; hidden: boolean }>(`/contents/${id}/hidden`, {
+      method: 'PUT',
+      body: { hidden },
+      auth: true,
+    }),
 }
 
 // ---- Compras ----------------------------------------------------------------------
@@ -374,11 +394,11 @@ export const purchasesApi = {
    * Download do arquivo completo (rota autenticada — precisa do header, então
    * baixa via fetch e dispara o save pelo blob).
    */
-  // Baixa UM item do pacote (itemId de content_items); pacote de 1 item
-  // dispensa o itemId.
-  async download(contentId: number, itemId?: number | null, suggestedName?: string | null): Promise<void> {
+  // Baixa UM arquivo do pacote (fileId de content_files); pacote com um
+  // único arquivo dispensa o fileId.
+  async download(contentId: number, fileId?: number | null, suggestedName?: string | null): Promise<void> {
     const token = getToken()
-    const qs = itemId ? `?item=${itemId}` : ''
+    const qs = fileId ? `?file=${fileId}` : ''
     const res = await fetch(`${BASE_URL}/purchases/content/${contentId}/download${qs}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })

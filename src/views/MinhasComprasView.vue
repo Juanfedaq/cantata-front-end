@@ -26,20 +26,20 @@ onMounted(async () => {
   }
 })
 
-// Um download por ITEM do pacote (categoria comprada).
-const downloadingItem = ref<number | null>(null)
+// Um download por ARQUIVO do pacote (2026-07-16: N arquivos por categoria).
+const downloadingFile = ref<number | null>(null)
 
-async function download(p: Purchase, item: Purchase['content']['items'][number]) {
+async function download(p: Purchase, file: { id: number; fileName: string | null }) {
   downloadingId.value = p.id
-  downloadingItem.value = item.id
+  downloadingFile.value = file.id
   error.value = ''
   try {
-    await purchasesApi.download(p.content.id, item.id, item.fileName)
+    await purchasesApi.download(p.content.id, file.id, file.fileName)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Erro ao baixar o arquivo.'
   } finally {
     downloadingId.value = null
-    downloadingItem.value = null
+    downloadingFile.value = null
   }
 }
 </script>
@@ -75,21 +75,27 @@ async function download(p: Purchase, item: Purchase['content']['items'][number])
           </p>
         </div>
 
-        <!-- Download não expira (spec §8); um botão por item do pacote -->
+        <!-- Download não expira (spec §8); um botão por ARQUIVO, agrupado
+             por categoria do pacote -->
         <div class="dl-group">
-          <button
-            v-for="item in p.content.items"
-            :key="item.id"
-            class="dl-btn"
-            :disabled="downloadingId === p.id"
-            @click="download(p, item)"
-          >
-            {{ downloadingId === p.id && downloadingItem === item.id
-              ? 'Baixando…'
-              : p.content.items.length > 1
-                ? `Baixar ${item.category.name}`
-                : 'Baixar' }}
-          </button>
+          <template v-for="item in p.content.items" :key="item.id">
+            <button
+              v-for="(file, fi) in item.files"
+              :key="file.id"
+              class="dl-btn"
+              :disabled="downloadingId === p.id"
+              :title="file.fileName ?? undefined"
+              @click="download(p, file)"
+            >
+              {{ downloadingId === p.id && downloadingFile === file.id
+                ? 'Baixando…'
+                : item.files.length > 1
+                  ? `${item.category.name} ${fi + 1}`
+                  : p.content.items.length > 1
+                    ? `Baixar ${item.category.name}`
+                    : 'Baixar' }}
+            </button>
+          </template>
         </div>
       </li>
     </ul>

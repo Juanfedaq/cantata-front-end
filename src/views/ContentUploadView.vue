@@ -1,16 +1,22 @@
 <script setup lang="ts">
 // Publicação de OBRA/pacote (2026-07-09): cada categoria (Música, Partitura,
-// Cifra, Coreografia) tem a própria área — preencher arquivo + prévia inclui
+// Cifra, Coreografia) tem a própria área — preencher arquivos + prévia inclui
 // a categoria no pacote; ao menos uma é obrigatória. Preço é ÚNICO e fica
 // por último, junto do simulador de repasse.
-import { computed, onMounted, ref, watch } from 'vue'
+// 2026-07-16: área de upload VISUAL — cada categoria aceita VÁRIOS arquivos
+// (boxes com preview: imagem mostra a imagem; áudio, nota; vídeo, play;
+// documento, folha) + o box de adicionar no fim; regras de tipo POR categoria
+// (música só áudio etc.); prévia pública continua única por categoria.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
+import FileGlyph from '@/components/FileGlyph.vue'
 import {
   ApiError,
   artistsApi,
   catalogApi,
   contentsApi,
+  fileUrl,
   formatPrice,
   type Category,
   type FeeSimulation,
@@ -34,17 +40,84 @@ const title = ref('')
 const description = ref('')
 const priceReais = ref('')
 const selectedSubs = ref<number[]>([])
-const cover = ref<File | null>(null)
 
-// Estado por categoria do pacote. `existing` = já está no pacote (edição);
-// `remove` = tirar do pacote no reenvio.
+// Capa da obra: box visual como os demais — nova capa vira thumb
+// (objectURL); em edição, a capa atual do servidor aparece no box.
+const cover = ref<File | null>(null)
+const coverUrl = ref<string | null>(null)
+const existingCoverPath = ref<string | null>(null)
+
+// ---- Estado por categoria do pacote -----------------------------------------
+// `newFiles` = arquivos escolhidos agora (com objectURL para thumb de imagem);
+// `existingFiles` = já no servidor (edição; `remove` marca p/ removeFileIds);
+// prévia é ÚNICA por categoria; `remove` tira a categoria inteira.
+interface LocalFile {
+  file: File
+  url: string | null // objectURL (só imagens — thumb no box)
+}
+interface ExistingFile {
+  id: number
+  fileName: string | null
+  remove: boolean
+}
 interface CatArea {
-  file: File | null
+  newFiles: LocalFile[]
+  existingFiles: ExistingFile[]
   preview: File | null
-  existing: boolean
+  previewUrl: string | null
+  hasExistingPreview: boolean
+  existing: boolean // categoria já estava no pacote (edição)
   remove: boolean
 }
 const areas = ref<Record<string, CatArea>>({})
+
+function blankArea(): CatArea {
+  return {
+    newFiles: [],
+    existingFiles: [],
+    preview: null,
+    previewUrl: null,
+    hasExistingPreview: false,
+    existing: false,
+    remove: false,
+  }
+}
+
+// Regras de tipo POR categoria (espelham o backend — upload.js).
+const CATEGORY_ACCEPT: Record<string, string> = {
+  musicas: '.mp3',
+  coreografias: '.mp4',
+  partituras: '.pdf,.docx,.jpg,.jpeg,.png,.webp',
+  cifras: '.pdf,.docx,.jpg,.jpeg,.png,.webp',
+}
+const CATEGORY_PREVIEW_ACCEPT: Record<string, string> = {
+  musicas: '.mp3',
+  coreografias: '.mp4',
+  partituras: '.pdf,.jpg,.jpeg,.png,.webp',
+  cifras: '.pdf,.jpg,.jpeg,.png,.webp',
+}
+const CATEGORY_HINT: Record<string, string> = {
+  musicas: 'áudio .mp3',
+  coreografias: 'vídeo .mp4',
+  partituras: '.pdf, .docx ou imagem',
+  cifras: '.pdf, .docx ou imagem',
+}
+const MAX_FILES_PER_CATEGORY = 10
+
+/** Natureza visual de um arquivo pelo nome (decide o ícone do box). */
+function fileKind(name: string | null | undefined): 'image' | 'audio' | 'video' | 'doc' {
+  const ext = (name ?? '').toLowerCase().split('.').pop() ?? ''
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'image'
+  if (ext === 'mp3') return 'audio'
+  if (ext === 'mp4') return 'video'
+  return 'doc'
+}
+
+/** A extensão é aceita pela categoria? (mesma regra do accept do input) */
+function extAllowed(accept: string, name: string) {
+  const ext = `.${name.toLowerCase().split('.').pop()}`
+  return accept.split(',').includes(ext)
+}
 
 const sending = ref(false)
 const error = ref('')
@@ -73,12 +146,17 @@ const subsByType = computed(() => {
   return groups
 })
 
+/** Arquivos que a categoria terá após o envio (existentes mantidos + novos). */
+function finalFileCount(a: CatArea) {
+  return a.existingFiles.filter((f) => !f.remove).length + a.newFiles.length
+}
+
 /** A categoria está (ou vai ficar) no pacote? */
 function isIncluded(slug: string) {
   const a = areas.value[slug]
-  if (!a) return false
-  if (a.remove) return false
-  return a.existing || (!!a.file && !!a.preview)
+  if (!a || a.remove) return false
+  if (a.existing) return finalFileCount(a) > 0
+  return a.newFiles.length > 0 && !!a.preview
 }
 
 const includedCount = computed(() =>
@@ -136,13 +214,13 @@ onMounted(async () => {
     categories.value = cats.categories
     subcategories.value = cats.subcategories
     for (const cat of cats.categories) {
-      areas.value[cat.slug] = { file: null, preview: null, existing: false, remove: false }
+      areas.value[cat.slug] = blankArea()
     }
   } catch {
     error.value = 'Erro ao carregar as categorias. Recarregue a página.'
   }
 
-  // Em edição, pré-carrega os metadados e marca as categorias já no pacote.
+  // Em edição, pré-carrega metadados, arquivos existentes e prévias.
   if (editingId.value) {
     try {
       const mine = (await contentsApi.mine()).contents
@@ -151,9 +229,17 @@ onMounted(async () => {
         title.value = current.title
         description.value = current.description ?? ''
         priceReais.value = (current.priceCents / 100).toFixed(2)
+        existingCoverPath.value = current.coverPath
         for (const item of current.items) {
           const area = areas.value[item.category.slug]
-          if (area) area.existing = true
+          if (!area) continue
+          area.existing = true
+          area.hasExistingPreview = true
+          area.existingFiles = item.files.map((f) => ({
+            id: f.id,
+            fileName: f.fileName,
+            remove: false,
+          }))
         }
       }
     } catch {
@@ -162,20 +248,93 @@ onMounted(async () => {
   }
 })
 
-function pickArea(slug: string, kind: 'file' | 'preview') {
-  return (e: Event) => {
-    const input = e.target as HTMLInputElement
-    const area = areas.value[slug]
-    if (area) {
-      area[kind] = input.files?.[0] ?? null
-      if (area[kind]) area.remove = false // enviar arquivo desfaz a remoção
-    }
+// ---- Seleção de arquivos (input múltiplo escondido no box de adicionar) ----
+function addFiles(slug: string, e: Event) {
+  const input = e.target as HTMLInputElement
+  const area = areas.value[slug]
+  const picked = [...(input.files ?? [])]
+  input.value = '' // permite escolher os mesmos arquivos de novo
+  if (!area || !picked.length) return
+  error.value = ''
+
+  const accept = CATEGORY_ACCEPT[slug] ?? ''
+  const rejected = picked.filter((f) => !extAllowed(accept, f.name))
+  if (rejected.length) {
+    error.value = `Tipo não aceito em ${slug}: ${rejected.map((f) => f.name).join(', ')} (aceita ${CATEGORY_HINT[slug]}).`
   }
+
+  const room = MAX_FILES_PER_CATEGORY - finalFileCount(area)
+  const accepted = picked.filter((f) => extAllowed(accept, f.name)).slice(0, Math.max(0, room))
+  if (picked.length - rejected.length > accepted.length) {
+    error.value = `Máximo de ${MAX_FILES_PER_CATEGORY} arquivos por categoria.`
+  }
+
+  for (const file of accepted) {
+    area.newFiles.push({
+      file,
+      url: fileKind(file.name) === 'image' ? URL.createObjectURL(file) : null,
+    })
+  }
+  if (accepted.length) area.remove = false // enviar arquivo desfaz a remoção
 }
+
+function removeNewFile(slug: string, index: number) {
+  const area = areas.value[slug]
+  const [gone] = area?.newFiles.splice(index, 1) ?? []
+  if (gone?.url) URL.revokeObjectURL(gone.url)
+}
+
+function toggleExistingFile(file: ExistingFile) {
+  file.remove = !file.remove
+}
+
+function pickPreview(slug: string, e: Event) {
+  const input = e.target as HTMLInputElement
+  const area = areas.value[slug]
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  if (!area || !file) return
+  if (!extAllowed(CATEGORY_PREVIEW_ACCEPT[slug] ?? '', file.name)) {
+    error.value = `Prévia de ${slug} não aceita este tipo de arquivo.`
+    return
+  }
+  if (area.previewUrl) URL.revokeObjectURL(area.previewUrl)
+  area.preview = file
+  area.previewUrl = fileKind(file.name) === 'image' ? URL.createObjectURL(file) : null
+  area.remove = false
+}
+
+function clearPreview(slug: string) {
+  const area = areas.value[slug]
+  if (!area) return
+  if (area.previewUrl) URL.revokeObjectURL(area.previewUrl)
+  area.preview = null
+  area.previewUrl = null
+}
+
+// Limpa os objectURLs criados para as thumbs.
+onBeforeUnmount(() => {
+  for (const area of Object.values(areas.value)) {
+    for (const f of area.newFiles) if (f.url) URL.revokeObjectURL(f.url)
+    if (area.previewUrl) URL.revokeObjectURL(area.previewUrl)
+  }
+  if (coverUrl.value) URL.revokeObjectURL(coverUrl.value)
+})
 
 function pickCover(e: Event) {
   const input = e.target as HTMLInputElement
-  cover.value = input.files?.[0] ?? null
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  if (!file) return
+  if (coverUrl.value) URL.revokeObjectURL(coverUrl.value)
+  cover.value = file
+  coverUrl.value = URL.createObjectURL(file)
+}
+
+function clearCover() {
+  if (coverUrl.value) URL.revokeObjectURL(coverUrl.value)
+  cover.value = null
+  coverUrl.value = null
 }
 
 function toggleRemove(slug: string) {
@@ -183,8 +342,9 @@ function toggleRemove(slug: string) {
   if (!area?.existing) return
   area.remove = !area.remove
   if (area.remove) {
-    area.file = null
-    area.preview = null
+    for (const f of area.newFiles) if (f.url) URL.revokeObjectURL(f.url)
+    area.newFiles = []
+    clearPreview(slug)
   }
 }
 
@@ -205,16 +365,24 @@ async function submit(asDraft: boolean) {
   const priceCents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
   if (!title.value.trim()) return (error.value = 'Informe o título.')
 
-  // Cada categoria NOVA precisa do par completo (arquivo + prévia).
+  // Validação por categoria: nova precisa de arquivos + prévia; mantida
+  // não pode terminar sem arquivos.
   for (const cat of categories.value) {
     const a = areas.value[cat.slug]
-    if (!a || a.existing || a.remove) continue
-    if ((a.file && !a.preview) || (!a.file && a.preview)) {
-      return (error.value = `A categoria "${cat.name}" precisa do arquivo completo E da prévia (ou deixe os dois vazios).`)
+    if (!a || a.remove) continue
+    if (!a.existing) {
+      if (a.newFiles.length && !a.preview) {
+        return (error.value = `A categoria "${cat.name}" precisa da prévia pública (o trecho que o visitante vê antes de comprar).`)
+      }
+      if (!a.newFiles.length && a.preview) {
+        return (error.value = `A categoria "${cat.name}" precisa de ao menos um arquivo para o comprador.`)
+      }
+    } else if (finalFileCount(a) === 0) {
+      return (error.value = `A categoria "${cat.name}" ficaria sem arquivos — remova a categoria inteira ou mantenha ao menos um.`)
     }
   }
   if (!includedCount.value) {
-    return (error.value = 'Inclua ao menos uma categoria no pacote (arquivo completo + prévia).')
+    return (error.value = 'Inclua ao menos uma categoria no pacote (arquivos + prévia).')
   }
   if (!Number.isInteger(priceCents) || priceCents < 100)
     return (error.value = 'Preço mínimo de R$ 1,00.')
@@ -227,14 +395,20 @@ async function submit(asDraft: boolean) {
   if (asDraft) form.set('draft', '1')
 
   const removeSlugs: string[] = []
+  const removeFileIds: number[] = []
   for (const cat of categories.value) {
     const a = areas.value[cat.slug]
     if (!a) continue
-    if (a.remove && a.existing) removeSlugs.push(cat.slug)
-    if (a.file) form.set(`file_${cat.slug}`, a.file)
+    if (a.remove && a.existing) {
+      removeSlugs.push(cat.slug)
+      continue
+    }
+    for (const lf of a.newFiles) form.append(`files_${cat.slug}`, lf.file)
+    for (const ef of a.existingFiles) if (ef.remove) removeFileIds.push(ef.id)
     if (a.preview) form.set(`preview_${cat.slug}`, a.preview)
   }
   if (removeSlugs.length) form.set('removeCategorySlugs', JSON.stringify(removeSlugs))
+  if (removeFileIds.length) form.set('removeFileIds', JSON.stringify(removeFileIds))
   if (cover.value) form.set('cover', cover.value)
 
   sending.value = true
@@ -332,25 +506,103 @@ async function submit(asDraft: boolean) {
             </legend>
 
             <template v-if="!areas[cat.slug]?.remove">
-              <label class="cat-input">
-                <span>
-                  Arquivo completo
-                  {{ areas[cat.slug]?.existing ? '(vazio = manter o atual)' : '' }}
-                  — .mp3, .mp4, .pdf ou .docx (máx. 50MB)
-                </span>
-                <input type="file" accept=".mp3,.mp4,.pdf,.docx" @change="pickArea(cat.slug, 'file')($event)" />
-              </label>
-              <label class="cat-input">
-                <span>
-                  Prévia {{ areas[cat.slug]?.existing ? '(vazio = manter a atual)' : '' }}
-                  — trecho que qualquer visitante pode ver/ouvir
-                </span>
-                <input
-                  type="file"
-                  accept=".mp3,.mp4,.pdf,.jpg,.jpeg,.png,.webp"
-                  @change="pickArea(cat.slug, 'preview')($event)"
-                />
-              </label>
+              <!-- Arquivos do comprador: boxes visuais + adicionar no FIM -->
+              <p class="up-label">
+                Arquivos que o comprador baixa — {{ CATEGORY_HINT[cat.slug] }} (máx. 50MB cada)
+              </p>
+              <div class="up-grid">
+                <!-- já no servidor (edição) -->
+                <div
+                  v-for="ef in areas[cat.slug]?.existingFiles"
+                  :key="`e${ef.id}`"
+                  class="up-box"
+                  :class="{ marked: ef.remove }"
+                >
+                  <FileGlyph :name="ef.fileName" />
+                  <span class="up-name" :title="ef.fileName ?? ''">{{ ef.fileName }}</span>
+                  <button
+                    type="button"
+                    class="up-x"
+                    :title="ef.remove ? 'Desfazer remoção' : 'Remover arquivo'"
+                    :aria-label="ef.remove ? 'Desfazer remoção' : `Remover ${ef.fileName}`"
+                    @click="toggleExistingFile(ef)"
+                  >
+                    {{ ef.remove ? '↺' : '✕' }}
+                  </button>
+                </div>
+
+                <!-- escolhidos agora -->
+                <div
+                  v-for="(lf, i) in areas[cat.slug]?.newFiles"
+                  :key="`n${i}-${lf.file.name}`"
+                  class="up-box novo"
+                >
+                  <img v-if="lf.url" :src="lf.url" :alt="lf.file.name" class="up-thumb" />
+                  <FileGlyph v-else :name="lf.file.name" />
+                  <span class="up-name" :title="lf.file.name">{{ lf.file.name }}</span>
+                  <button
+                    type="button"
+                    class="up-x"
+                    :aria-label="`Remover ${lf.file.name}`"
+                    title="Remover"
+                    @click="removeNewFile(cat.slug, i)"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <!-- adicionar (sempre no fim) -->
+                <label class="up-add" :title="`Adicionar arquivos (${CATEGORY_HINT[cat.slug]})`">
+                  <input
+                    type="file"
+                    multiple
+                    class="sr-only"
+                    :accept="CATEGORY_ACCEPT[cat.slug]"
+                    @change="addFiles(cat.slug, $event)"
+                  />
+                  <span class="up-plus" aria-hidden="true">+</span>
+                  <span class="up-add-label">Adicionar</span>
+                </label>
+              </div>
+
+              <!-- Prévia pública: box único, mesmo visual -->
+              <p class="up-label">
+                Prévia pública — o que o visitante vê/ouve antes de comprar
+                {{ areas[cat.slug]?.hasExistingPreview && !areas[cat.slug]?.preview ? '(atual mantida)' : '' }}
+              </p>
+              <div class="up-grid">
+                <div v-if="areas[cat.slug]?.preview" class="up-box novo preview">
+                  <img
+                    v-if="areas[cat.slug]?.previewUrl"
+                    :src="areas[cat.slug]!.previewUrl!"
+                    :alt="areas[cat.slug]!.preview!.name"
+                    class="up-thumb"
+                  />
+                  <FileGlyph v-else :name="areas[cat.slug]!.preview!.name" />
+                  <span class="up-name" :title="areas[cat.slug]!.preview!.name">{{ areas[cat.slug]!.preview!.name }}</span>
+                  <button
+                    type="button"
+                    class="up-x"
+                    aria-label="Remover prévia"
+                    title="Remover"
+                    @click="clearPreview(cat.slug)"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <label v-else class="up-add" :class="{ kept: areas[cat.slug]?.hasExistingPreview }">
+                  <input
+                    type="file"
+                    class="sr-only"
+                    :accept="CATEGORY_PREVIEW_ACCEPT[cat.slug]"
+                    @change="pickPreview(cat.slug, $event)"
+                  />
+                  <span class="up-plus" aria-hidden="true">+</span>
+                  <span class="up-add-label">
+                    {{ areas[cat.slug]?.hasExistingPreview ? 'Trocar prévia' : 'Prévia' }}
+                  </span>
+                </label>
+              </div>
             </template>
 
             <button
@@ -365,10 +617,44 @@ async function submit(asDraft: boolean) {
         </div>
       </div>
 
-      <label class="field">
-        <span>Capa da obra (opcional) — imagem</span>
-        <input type="file" accept=".jpg,.jpeg,.png,.webp" @change="pickCover($event)" />
-      </label>
+      <!-- Capa: box visual 4:3 (mesma linguagem dos uploads por categoria) -->
+      <div class="field">
+        <span>
+          Capa da obra (opcional) — imagem que aparece nos cards
+          {{ existingCoverPath && !cover ? '(atual mantida)' : '' }}
+        </span>
+        <div class="up-grid">
+          <!-- Capa nova escolhida agora -->
+          <div v-if="cover" class="up-box novo cover-box">
+            <img :src="coverUrl ?? undefined" :alt="cover.name" class="up-thumb" />
+            <span class="up-name" :title="cover.name">{{ cover.name }}</span>
+            <button
+              type="button"
+              class="up-x"
+              aria-label="Remover capa escolhida"
+              title="Remover"
+              @click="clearCover"
+            >
+              ✕
+            </button>
+          </div>
+          <!-- Capa atual do servidor (edição), enquanto não trocar -->
+          <div v-else-if="existingCoverPath" class="up-box cover-box">
+            <img :src="fileUrl(existingCoverPath) ?? undefined" alt="Capa atual" class="up-thumb" />
+            <span class="up-name">capa atual</span>
+          </div>
+          <label class="up-add cover-box" v-if="!cover">
+            <input
+              type="file"
+              class="sr-only"
+              accept=".jpg,.jpeg,.png,.webp"
+              @change="pickCover($event)"
+            />
+            <span class="up-plus" aria-hidden="true">+</span>
+            <span class="up-add-label">{{ existingCoverPath ? 'Trocar capa' : 'Capa' }}</span>
+          </label>
+        </div>
+      </div>
 
       <!-- Preço por último, junto do simulador de repasse -->
       <label class="field narrow">
@@ -398,9 +684,6 @@ async function submit(asDraft: boolean) {
         <p v-if="simulation.pisoAplicado" class="sim-note">
           Neste preço, {{ simulation.percentAplicado }}% renderia menos que o piso de
           {{ formatPrice(simulation.config.minFeeCents) }} — o piso é aplicado.
-        </p>
-        <p v-if="simulation.assinaturaAtiva" class="sim-note ok">
-          Comissão reduzida de assinante ({{ simulation.config.subscribedPercent }}%) aplicada.
         </p>
       </div>
       <p v-else-if="simulating" class="muted">Calculando repasse…</p>
@@ -527,20 +810,159 @@ async function submit(asDraft: boolean) {
   }
 }
 
-.cat-input {
+// ---- Área visual de upload (boxes) -------------------------------------------
+.up-label {
+  margin-top: 0.9rem;
+  font-size: 0.8rem;
+  color: rgba(var(--fg-rgb), 0.6);
+}
+
+.up-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+// Box de arquivo: quadrado blocado (guia §3) com o preview do item —
+// thumb para imagem; ícone (nota/play/folha) para o resto — e o nome.
+.up-box {
+  position: relative;
+  width: 96px;
+  height: 96px;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-top: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border: 1px solid $line;
+  background: $color-back;
+  overflow: hidden;
+  transition: border-color 0.5s $ease-brand, opacity 0.5s $ease-brand;
 
-  > span {
-    font-size: 0.8rem;
-    color: rgba(var(--fg-rgb), 0.6);
+  &.novo {
+    border-color: rgba($color-primary, 0.45);
   }
 
-  input[type='file'] {
-    color: rgba(var(--fg-rgb), 0.7);
+  // Arquivo existente marcado para remoção.
+  &.marked {
+    opacity: 0.45;
+    border-color: rgba($color-error, 0.5);
+
+    .up-name {
+      text-decoration: line-through;
+    }
   }
+}
+
+// Thumb de imagem ocupa o box inteiro; o nome vira uma faixa na base.
+.up-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.up-box:has(.up-thumb) .up-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.25rem 0.4rem;
+  background: color-mix(in srgb, rgb(var(--bg-rgb)) 78%, transparent);
+}
+
+.up-name {
+  max-width: 100%;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  color: rgba(var(--fg-rgb), 0.7);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ✕ / ↺ no canto do box.
+.up-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid $line;
+  border-bottom: 1px solid $line;
+  background: color-mix(in srgb, rgb(var(--fg-rgb)) 6%, rgb(var(--bg-rgb)));
+  color: $color-error;
+  font-size: 0.65rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.5s $ease-brand;
+
+  &:hover {
+    background: color-mix(in srgb, $color-error 18%, rgb(var(--bg-rgb)));
+  }
+}
+
+// Box de ADICIONAR (sempre no fim da lista): tracejado, vira input nativo
+// (label envolve o input escondido — clique abre o finder, com `multiple`).
+.up-add {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  border: 1px dashed rgba(var(--fg-rgb), 0.3);
+  color: rgba(var(--fg-rgb), 0.55);
+  cursor: pointer;
+  transition: border-color 0.5s $ease-brand, color 0.5s $ease-brand,
+    background-color 0.5s $ease-brand;
+
+  &:hover,
+  &:focus-within {
+    border-color: rgba($color-primary, 0.6);
+    color: $gold-text;
+    background: $fill-hover-solid;
+  }
+}
+
+.up-plus {
+  font-size: 1.6rem;
+  line-height: 1;
+  font-weight: 300;
+}
+
+.up-add-label {
+  @include label-type;
+  font-size: 0.58rem;
+}
+
+// Capa: box maior em 4:3 — a proporção real do card do catálogo.
+.cover-box {
+  width: 152px;
+  height: 114px;
+}
+
+// Input escondido mas acessível (foco pelo teclado continua funcionando).
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .cat-remove {

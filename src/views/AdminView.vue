@@ -39,17 +39,17 @@ async function loadContents() {
 }
 
 // Admin pode baixar os arquivos completos para avaliar antes de aprovar
-// (a rota de download libera para admin sem compra) — um por item do pacote.
-const downloadingItem = ref<number | null>(null)
-async function downloadFull(c: AdminContent, item: AdminContent['items'][number]) {
-  downloadingItem.value = item.id
+// (a rota de download libera para admin sem compra) — um por ARQUIVO.
+const downloadingFile = ref<number | null>(null)
+async function downloadFull(c: AdminContent, file: { id: number; fileName: string | null }) {
+  downloadingFile.value = file.id
   error.value = ''
   try {
-    await purchasesApi.download(c.id, item.id, item.fileName)
+    await purchasesApi.download(c.id, file.id, file.fileName)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Erro ao baixar o arquivo.'
   } finally {
-    downloadingItem.value = null
+    downloadingFile.value = null
   }
 }
 
@@ -195,15 +195,20 @@ onMounted(loadContents)
               {{ formatPrice(c.priceCents) }} · {{ c.artist.name || c.artist.email }}</span>
           </div>
           <p v-if="c.description" class="mod-desc">{{ c.description }}</p>
-          <!-- Um bloco de avaliação por item do pacote -->
-          <p v-for="item in c.items" :key="item.id" class="muted small">
-            {{ item.category.name }}: {{ item.fileName }}
-            ({{ item.fileSize ? (item.fileSize / 1024 / 1024).toFixed(1) : '?' }} MB)
-            · <a v-if="fileUrl(item.previewPath)" :href="fileUrl(item.previewPath)!" target="_blank" class="link">ver prévia</a>
-            · <button class="link inline-btn" :disabled="downloadingItem === item.id" @click="downloadFull(c, item)">
-              {{ downloadingItem === item.id ? 'baixando…' : 'baixar arquivo completo' }}
-            </button>
-          </p>
+          <!-- Um bloco de avaliação por item do pacote; download por arquivo -->
+          <div v-for="item in c.items" :key="item.id" class="muted small">
+            <p>
+              {{ item.category.name }} ({{ item.files.length }} arquivo{{ item.files.length === 1 ? '' : 's' }})
+              · <a v-if="fileUrl(item.previewPath)" :href="fileUrl(item.previewPath)!" target="_blank" class="link">ver prévia</a>
+            </p>
+            <p v-for="file in item.files" :key="file.id" class="file-row">
+              — {{ file.fileName }}
+              ({{ file.fileSize ? (file.fileSize / 1024 / 1024).toFixed(1) : '?' }} MB)
+              · <button class="link inline-btn" :disabled="downloadingFile === file.id" @click="downloadFull(c, file)">
+                {{ downloadingFile === file.id ? 'baixando…' : 'baixar' }}
+              </button>
+            </p>
+          </div>
           <p v-if="c.rejectionReason" class="reject-reason">Motivo anterior: {{ c.rejectionReason }}</p>
 
           <div v-if="c.status === 'em_revisao'" class="mod-actions">
