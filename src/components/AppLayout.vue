@@ -105,6 +105,17 @@ function logout() {
               >
                 Meus Conteúdos
               </RouterLink>
+              <!-- Quem ainda não é artista vê o convite (leva ao upgrade
+                   "Torne-se um artista" no Meu Perfil) -->
+              <RouterLink
+                v-else
+                to="/perfil"
+                class="sell-cta"
+                role="menuitem"
+                @click="closeUserMenu"
+              >
+                Vender no Cantata
+              </RouterLink>
               <template v-if="confirmingExit">
                 <p class="exit-question" aria-live="polite">Sair da conta?</p>
                 <button type="button" class="item-btn exit-yes" role="menuitem" @click="logout">
@@ -187,7 +198,14 @@ function logout() {
 
     <footer class="footer">
       <p>Cantata — conteúdos musicais de quem cria para quem toca. 🎵</p>
-      <RouterLink to="/privacidade" class="footer-link">Política de Privacidade</RouterLink>
+      <nav class="footer-links">
+        <!-- /perfil abriga o convite "Torne-se um artista"; sem login, a
+             guarda manda para o login com redirect de volta. -->
+        <RouterLink v-if="!auth.isArtist" to="/perfil" class="footer-link gold">
+          Venda suas obras no Cantata
+        </RouterLink>
+        <RouterLink to="/privacidade" class="footer-link">Política de Privacidade</RouterLink>
+      </nav>
     </footer>
   </div>
 </template>
@@ -335,6 +353,16 @@ $line: rgba(var(--fg-rgb), 0.1);
       }
     }
 
+    // Convite a vender: dourado, como o CTA de criar conta (guia §4).
+    &.dropdown > .sell-cta,
+    &.dropdown > .sell-cta:hover {
+      color: $gold-strong;
+    }
+
+    &.dropdown > .sell-cta:hover {
+      background: rgba($color-primary, 0.14);
+    }
+
     // Sair é ação de saída: apagado, sem dourado no ativo.
     .exit {
       color: $text-dim;
@@ -476,9 +504,16 @@ $line: rgba(var(--fg-rgb), 0.1);
   text-align: center;
 }
 
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
 .footer-link {
   display: inline-block;
-  margin-top: 0.4rem;
   font-size: 0.8rem;
   color: $text-dim;
   text-decoration: none;
@@ -486,6 +521,14 @@ $line: rgba(var(--fg-rgb), 0.1);
 
   &:hover {
     color: $gold-text;
+  }
+
+  &.gold {
+    color: $gold-text;
+
+    &:hover {
+      color: $color-white;
+    }
   }
 }
 
