@@ -13,12 +13,20 @@ const theme = useThemeStore()
 const userMenuOpen = ref(false)
 const userMenuEl = ref<HTMLElement | null>(null)
 
+// Sair pede confirmação inline no próprio dropdown (clicar em "Sair"
+// troca o item por "Sair da conta?" + Sair/Cancelar).
+const confirmingExit = ref(false)
+
 function closeUserMenu() {
   userMenuOpen.value = false
+  confirmingExit.value = false
 }
 
 // Fecha ao clicar fora do dropdown ou ao apertar Escape.
-function onDocClick(e: MouseEvent) {
+// POINTERDOWN, não click: um clique num item que se re-renderiza (ex.:
+// "Sair" virando a confirmação) chega ao document com o alvo já fora do
+// DOM — `contains` falharia e o menu fecharia sozinho.
+function onDocPointerDown(e: PointerEvent) {
   if (userMenuOpen.value && !userMenuEl.value?.contains(e.target as Node)) closeUserMenu()
 }
 function onDocKey(e: KeyboardEvent) {
@@ -26,11 +34,11 @@ function onDocKey(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  document.addEventListener('click', onDocClick)
+  document.addEventListener('pointerdown', onDocPointerDown)
   document.addEventListener('keydown', onDocKey)
 })
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('pointerdown', onDocPointerDown)
   document.removeEventListener('keydown', onDocKey)
 })
 
@@ -97,7 +105,27 @@ function logout() {
               >
                 Meus Conteúdos
               </RouterLink>
-              <button type="button" class="item-btn exit" role="menuitem" @click="logout">
+              <template v-if="confirmingExit">
+                <p class="exit-question" aria-live="polite">Sair da conta?</p>
+                <button type="button" class="item-btn exit-yes" role="menuitem" @click="logout">
+                  Sair
+                </button>
+                <button
+                  type="button"
+                  class="item-btn"
+                  role="menuitem"
+                  @click="confirmingExit = false"
+                >
+                  Cancelar
+                </button>
+              </template>
+              <button
+                v-else
+                type="button"
+                class="item-btn exit"
+                role="menuitem"
+                @click="confirmingExit = true"
+              >
                 Sair
               </button>
             </div>
@@ -314,6 +342,33 @@ $line: rgba(var(--fg-rgb), 0.1);
       &:hover {
         color: $color-white;
       }
+    }
+
+    // Confirmação inline do Sair: pergunta + Sair + Cancelar, cada um em
+    // sua LINHA (itens normais do menu — a largura do dropdown não muda).
+    .exit-question {
+      @include label-type;
+      font-size: 0.62rem;
+      color: $text-dim;
+      padding: 0.7rem 1.3rem 0.35rem;
+      border-top: 1px solid $line;
+      white-space: nowrap;
+    }
+
+    // A pergunta já desenha a linha de cima — o item seguinte não repete.
+    .exit-question + .item-btn {
+      border-top: none;
+    }
+
+    // Regras depois do seletor genérico dos itens: mesma especificidade,
+    // ordem no arquivo decide — o vermelho vence no estado normal e no hover.
+    &.dropdown > .exit-yes,
+    &.dropdown > .exit-yes:hover {
+      color: $color-error;
+    }
+
+    &.dropdown > .exit-yes:hover {
+      background: color-mix(in srgb, $color-error 14%, rgb(var(--bg-rgb)));
     }
   }
 
