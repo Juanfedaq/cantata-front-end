@@ -1,20 +1,25 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
+import ThemeSwitch from '@/components/ThemeSwitch.vue'
+import { lockScroll } from '@/scroll'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const auth = useAuthStore()
-const theme = useThemeStore()
 
 // Dropdown do usuário (Perfil / Minhas Compras / Meus Conteúdos / Sair).
 const userMenuOpen = ref(false)
 const userMenuEl = ref<HTMLElement | null>(null)
 
-// Sair pede confirmação inline no próprio dropdown (clicar em "Sair"
-// troca o item por "Sair da conta?" + Sair/Cancelar).
+// Menu mobile (≤1080px): hambúrguer que expande um painel com TUDO
+// (nav + conta) — substitui o menu que quebrava em linhas.
+const mobileOpen = ref(false)
+const mobileEl = ref<HTMLElement | null>(null)
+
+// Sair pede confirmação inline (dropdown e painel mobile): clicar em
+// "Sair" troca o item por "Sair da conta?" + Sair/Cancelar.
 const confirmingExit = ref(false)
 
 function closeUserMenu() {
@@ -22,15 +27,29 @@ function closeUserMenu() {
   confirmingExit.value = false
 }
 
-// Fecha ao clicar fora do dropdown ou ao apertar Escape.
+function closeMobile() {
+  mobileOpen.value = false
+  confirmingExit.value = false
+}
+
+// Painel em tela cheia: trava o scroll da página enquanto está aberto
+// (overflow + parada do Lenis — ver scroll.ts).
+watch(mobileOpen, (open) => lockScroll(open))
+
+// Fecha ao clicar fora do dropdown/painel ou ao apertar Escape.
 // POINTERDOWN, não click: um clique num item que se re-renderiza (ex.:
 // "Sair" virando a confirmação) chega ao document com o alvo já fora do
 // DOM — `contains` falharia e o menu fecharia sozinho.
 function onDocPointerDown(e: PointerEvent) {
-  if (userMenuOpen.value && !userMenuEl.value?.contains(e.target as Node)) closeUserMenu()
+  const target = e.target as Node
+  if (userMenuOpen.value && !userMenuEl.value?.contains(target)) closeUserMenu()
+  if (mobileOpen.value && !mobileEl.value?.contains(target)) closeMobile()
 }
 function onDocKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') closeUserMenu()
+  if (e.key === 'Escape') {
+    closeUserMenu()
+    closeMobile()
+  }
 }
 
 onMounted(() => {
@@ -44,6 +63,7 @@ onBeforeUnmount(() => {
 
 function logout() {
   closeUserMenu()
+  closeMobile()
   auth.logout()
   router.push('/inicio')
 }
@@ -53,6 +73,92 @@ function logout() {
   <div class="layout">
     <!-- Header sem logomarca: um único menu blocado centralizado (nav +
          sessão) e, ao lado, o switch de tema — grupos separados por gap. -->
+    <!-- Mobile (≤1080px): botão de menu FLUTUANTE no canto inferior
+         direito (zona do polegar) + painel em tela cheia. Mora FORA do
+         header: o backdrop-filter dele quebraria o position:fixed. -->
+    <!-- Mobile (≤1080px): hambúrguer no canto esquerdo expande o painel
+         com nav + conta; o menu desktop some. -->
+    <div ref="mobileEl" class="mobile-menu">
+      <!-- Barra inferior: o "header" do mobile mora embaixo — tema colado
+           à esquerda, botão do menu colado à direita -->
+      <div class="mobile-bar">
+        <ThemeSwitch class="bar-switch" />
+        <button
+          type="button"
+          class="burger"
+        :class="{ open: mobileOpen }"
+        :aria-expanded="mobileOpen"
+        aria-label="Abrir menu"
+        @click="mobileOpen = !mobileOpen"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <template v-if="mobileOpen">
+            <path d="M5 5 19 19M19 5 5 19" />
+          </template>
+          <template v-else>
+            <path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17" />
+          </template>
+          </svg>
+        </button>
+      </div>
+
+      <Transition name="drop">
+        <nav v-if="mobileOpen" class="mobile-panel">
+          <RouterLink to="/inicio" @click="closeMobile">Início</RouterLink>
+          <RouterLink to="/biblioteca" @click="closeMobile">Biblioteca</RouterLink>
+          <RouterLink to="/artistas" @click="closeMobile">Artistas</RouterLink>
+          <RouterLink v-if="auth.isAdmin" to="/admin" @click="closeMobile">Admin</RouterLink>
+
+          <template v-if="auth.isAuthenticated">
+            <!-- Bloco da conta: avatar + nome como cabeçalho da seção -->
+            <p class="panel-user">
+              <ArtistAvatar
+                :name="auth.user?.name || auth.user?.email || null"
+                :avatar-path="auth.user?.avatarPath"
+                :size="22"
+              />
+              <span>{{ auth.user?.name || auth.user?.email }}</span>
+            </p>
+            <RouterLink to="/perfil" @click="closeMobile">Meu Perfil</RouterLink>
+            <RouterLink to="/compras" @click="closeMobile">Minhas Compras</RouterLink>
+            <RouterLink v-if="auth.isArtist" to="/artista/conteudos" @click="closeMobile">
+              Meus Conteúdos
+            </RouterLink>
+            <RouterLink v-else to="/perfil" class="sell-cta" @click="closeMobile">
+              Vender no Cantata
+            </RouterLink>
+
+            <template v-if="confirmingExit">
+              <p class="exit-question">Sair da conta?</p>
+              <button type="button" class="item-btn exit-yes" @click="logout">Sair</button>
+              <button type="button" class="item-btn" @click="confirmingExit = false">
+                Cancelar
+              </button>
+            </template>
+            <button v-else type="button" class="item-btn exit" @click="confirmingExit = true">
+              Sair
+            </button>
+          </template>
+          <template v-else>
+            <RouterLink to="/login" @click="closeMobile">Entrar</RouterLink>
+            <RouterLink to="/register" class="sell-cta" @click="closeMobile">
+              Criar conta
+            </RouterLink>
+          </template>
+
+        </nav>
+      </Transition>
+    </div>
+
     <header class="header">
       <nav class="menu">
         <RouterLink to="/inicio">Início</RouterLink>
@@ -148,48 +254,9 @@ function logout() {
         </template>
       </nav>
 
-      <!-- Switch de tema blocado: duas células (lua | sol) e um indicador
-           que desliza no easing da marca. Ícones da ComingSoonView. -->
-      <button
-        type="button"
-        class="theme-switch"
-        :class="{ light: !theme.isDark }"
-        role="switch"
-        :aria-checked="!theme.isDark"
-        :aria-label="theme.isDark ? 'Ativar tema claro' : 'Ativar tema escuro'"
-        @click="theme.toggle()"
-      >
-        <span class="knob" aria-hidden="true"></span>
-        <span class="cell" :class="{ active: theme.isDark }" aria-hidden="true">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linejoin="round"
-          >
-            <path d="M20 13.2A8.1 8.1 0 0 1 10.8 4a7.5 7.5 0 1 0 9.2 9.2Z" />
-          </svg>
-        </span>
-        <span class="cell" :class="{ active: !theme.isDark }" aria-hidden="true">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          >
-            <circle cx="12" cy="12" r="4.5" />
-            <path
-              d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"
-            />
-          </svg>
-        </span>
-      </button>
+      <!-- Switch de tema: colado à direita no desktop; no MOBILE ele mora
+           dentro do painel do hambúrguer (header fica só burger + nada). -->
+      <ThemeSwitch class="theme-switch" />
     </header>
 
     <main class="main">
@@ -215,6 +282,19 @@ function logout() {
 $ease-brand: cubic-bezier(0.22, 1, 0.36, 1);
 // Linha padrão do estilo blocado do header.
 $line: rgba(var(--fg-rgb), 0.1);
+
+// Entrada/saída dos painéis (dropdown do usuário e menu mobile):
+// véu + leve descida (transform/opacity apenas).
+.drop-enter-active,
+.drop-leave-active {
+  transition: opacity 0.35s $ease-brand, transform 0.35s $ease-brand;
+}
+
+.drop-enter-from,
+.drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
 
 // Item blocado: base compartilhada por links e botões das três zonas.
 // Hover: luz dourada que sobe da base (mixin global hover-light, guia §4).
@@ -400,18 +480,6 @@ $line: rgba(var(--fg-rgb), 0.1);
     }
   }
 
-  // Entrada/saída do painel: véu + leve descida (transform/opacity apenas).
-  .drop-enter-active,
-  .drop-leave-active {
-    transition: opacity 0.35s $ease-brand, transform 0.35s $ease-brand;
-  }
-
-  .drop-enter-from,
-  .drop-leave-to {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-
   .cta {
     color: $gold-strong;
     font-weight: 600;
@@ -431,61 +499,16 @@ $line: rgba(var(--fg-rgb), 0.1);
   font-family: inherit;
 }
 
-// Switch de tema blocado: duas células (lua | sol) emolduradas, indicador
-// que desliza para a célula ativa com o easing da marca — preenchimento
-// ativo + linha dourada na base (mesma gramática de item ativo do guia §4).
+// Switch de tema (componente ThemeSwitch): aqui só o posicionamento —
 // COLADO na borda direita da barra (absolute right:0 — ignora o padding
 // do header; altura total; sem borda no lado do encosto).
-.theme-switch {
+// Só o switch DO HEADER (o do painel mobile fica na linha "Tema").
+.header > .theme-switch {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  display: flex;
-  align-items: stretch;
-  padding: 0;
-  background: none;
-  border: none;
   border-left: 1px solid $line;
-  cursor: pointer;
-
-  .cell {
-    position: relative; // acima do indicador
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 46px;
-    color: rgba(var(--fg-rgb), 0.45);
-    transition: color 0.5s $ease-brand;
-
-    svg {
-      display: block;
-    }
-
-    &.active {
-      color: $gold-text;
-    }
-  }
-
-  &:hover .cell:not(.active) {
-    color: $color-white;
-  }
-
-  // Indicador: metade do trilho, desliza dark (esquerda) ⇄ light (direita).
-  .knob {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 50%;
-    background: rgba(var(--fg-rgb), 0.05);
-    border-bottom: 1px solid $gold-text;
-    transition: transform 0.5s $ease-brand;
-  }
-
-  &.light .knob {
-    transform: translateX(100%);
-  }
 }
 
 .main {
@@ -532,27 +555,166 @@ $line: rgba(var(--fg-rgb), 0.1);
   }
 }
 
-// Em telas menores o menu quebra em linhas, ainda centralizado e blocado;
-// o switch segue colado à direita (altura total do header) e o padding
-// direito reserva o espaço dele para o menu não passar por baixo.
-@media (max-width: 1080px) {
-  .header {
-    height: auto;
-    padding: 0.6rem 96px 0.6rem 1rem;
-    gap: 0.75rem;
-    align-items: center;
+// ---- Menu mobile (hambúrguer + painel expansível) ----------------------------
+// Desktop: invisível. ≤1080px: o hambúrguer fica COLADO na borda esquerda
+// (espelho do switch de tema à direita) e expande o painel com nav + conta.
+.mobile-menu {
+  display: none;
+}
+
+// Barra inferior do mobile: o header de baixo — vidro com linha superior,
+// largura total, com o botão do menu colado no canto direito.
+.mobile-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(var(--bg-rgb), 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid $line;
+}
+
+// Switch de tema na barra: colado no canto ESQUERDO (espelho do botão).
+.bar-switch {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 56px;
+  border-right: 1px solid $line;
+}
+
+.burger {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-left: 1px solid $line;
+  color: rgba(var(--fg-rgb), 0.6);
+  cursor: pointer;
+  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
+
+  &:hover {
+    color: $color-white;
   }
 
-  .menu {
-    flex-wrap: wrap;
-    justify-content: center;
+  &.open {
+    color: $gold-text;
+    background: rgba(var(--fg-rgb), 0.08);
+  }
+}
 
-    > a,
-    > .item-btn,
-    > .user-menu > .user {
-      height: 42px;
-      padding: 0 0.9rem;
+// Painel expansível: colado sob o header, largura total, itens blocados
+// empilhados (mesma gramática do dropdown do usuário).
+.mobile-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  // Vai do TOPO até a barra inferior (o header do topo some no mobile).
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  z-index: 55; // abaixo da barra/botão (60)
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: rgb(var(--bg-rgb));
+
+  > a,
+  > .item-btn {
+    @include block-item;
+    height: 50px;
+    justify-content: flex-start;
+    padding: 0 1.5rem;
+    border-top: 1px solid $line;
+
+    &.router-link-active {
+      color: $gold-text;
+      background: rgba(var(--fg-rgb), 0.05);
     }
+  }
+
+  // Cabeçalho da seção da conta: avatar + nome (dado, sem uppercase).
+  .panel-user {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.5rem 0.5rem;
+    border-top: 1px solid $line;
+    color: $gold-text;
+    font-size: 0.85rem;
+  }
+
+  .panel-user + a {
+    border-top: none;
+  }
+
+  .exit-question {
+    @include label-type;
+    font-size: 0.62rem;
+    color: $text-dim;
+    padding: 0.8rem 1.5rem 0.35rem;
+    border-top: 1px solid $line;
+  }
+
+  .exit-question + .item-btn {
+    border-top: none;
+  }
+
+  // Mesmo jogo de especificidade do dropdown: regras depois do genérico.
+  &.mobile-panel > .sell-cta,
+  &.mobile-panel > .sell-cta:hover {
+    color: $gold-strong;
+  }
+
+  &.mobile-panel > .sell-cta:hover {
+    background: rgba($color-primary, 0.14);
+  }
+
+  &.mobile-panel > .exit,
+  &.mobile-panel > .exit:hover {
+    color: $text-dim;
+  }
+
+  &.mobile-panel > .exit:hover {
+    color: $color-white;
+  }
+
+  &.mobile-panel > .exit-yes,
+  &.mobile-panel > .exit-yes:hover {
+    color: $color-error;
+  }
+
+  &.mobile-panel > .exit-yes:hover {
+    background: color-mix(in srgb, $color-error 14%, rgb(var(--bg-rgb)));
+  }
+
+}
+
+// Em telas menores: some o menu desktop (e o dropdown), entra o hambúrguer.
+// O header mantém 64px; o switch segue colado à direita.
+@media (max-width: 1080px) {
+  // O header do topo some — o "header" do mobile é a barra inferior.
+  .header {
+    display: none;
+  }
+
+  .mobile-menu {
+    display: block;
+  }
+
+  // Respiro no fim da página (altura do header): o botão flutuante não
+  // fica na frente do conteúdo quando o scroll chega ao final.
+  .footer {
+    padding-bottom: calc(1.5rem + 64px);
   }
 }
 </style>

@@ -58,3 +58,48 @@ body {
     background-color 0.4s ease,
     color 0.4s ease;
 }
+
+// ---- Barra de scroll no estilo da plataforma (blocado, guia §3) -------------
+// Fina, SEM radius, trilho com a linha de 1px padrão e polegar apagado que
+// doura no hover/arrasto. Vale para a página e para qualquer área rolável
+// (tabelas do admin, dropdowns…), nos dois temas via --fg-rgb/--bg-rgb.
+
+// Firefox APENAS: as propriedades padrão, se definidas, fazem o Chrome
+// (121+) IGNORAR o ::-webkit-scrollbar — por isso ficam atrás do @supports
+// negando o seletor webkit (só o Firefox entra aqui).
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--fg-rgb), 0.28) rgb(var(--bg-rgb));
+  }
+}
+
+// WebKit (Chrome/Edge/Safari)
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--bg-rgb));
+  border-left: 1px solid rgba(var(--fg-rgb), 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--fg-rgb), 0.22);
+  border-radius: 0; // blocado: nunca arredonda
+  // Moldura da cor do fundo: o polegar parece "encaixado" no trilho.
+  border: 2px solid rgb(var(--bg-rgb));
+
+  &:hover {
+    background: color-mix(in srgb, #{$color-primary} 70%, rgb(var(--fg-rgb)));
+  }
+
+  &:active {
+    background: var(--gold-strong);
+  }
+}
+
+::-webkit-scrollbar-corner {
+  background: rgb(var(--bg-rgb));
+}

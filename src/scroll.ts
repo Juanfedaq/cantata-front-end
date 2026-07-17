@@ -19,3 +19,15 @@ export function scrollToTop() {
   if (lenis) lenis.scrollTo(0, { immediate: true })
   else window.scrollTo(0, 0)
 }
+
+// Trava/destrava a rolagem da página (ex.: menu mobile aberto). O
+// overflow:hidden sozinho não basta — o Lenis rola programaticamente e
+// passa por cima dele; precisa parar o próprio Lenis.
+export function lockScroll(locked: boolean) {
+  if (typeof window === 'undefined') return
+  document.documentElement.style.overflow = locked ? 'hidden' : ''
+  if (lenis) {
+    if (locked) lenis.stop()
+    else lenis.start()
+  }
+}
