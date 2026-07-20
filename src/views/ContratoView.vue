@@ -19,8 +19,11 @@ const agreed = ref(false)
 const accepting = ref(false)
 const accepted = ref(false)
 
-// O texto é nosso (arquivo do backend), mas sanidade básica: marked sem
-// html cru já cobre; o conteúdo não recebe input de usuário.
+// ATENÇÃO: o marked NÃO sanitiza — HTML cru dentro do markdown sai intacto
+// no v-html abaixo. Só é seguro porque o contrato é arquivo VERSIONADO no
+// repo do backend (contracts/*.md), nunca input de usuário. Se um dia o
+// texto vier de fonte editável (painel/banco), sanitizar com DOMPurify
+// antes de renderizar. Regra do projeto: nenhum outro v-html no app.
 const html = computed(() =>
   contract.value ? (marked.parse(contract.value.markdown, { async: false }) as string) : '',
 )
