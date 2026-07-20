@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import AuthShell from '@/components/AuthShell.vue'
+import GoogleSignInButton from '@/components/GoogleSignInButton.vue'
 import { useAuthStore } from '@/stores/auth'
 import { authApi, ApiError } from '@/services/api'
 
@@ -36,6 +37,15 @@ async function onSubmit() {
   } finally {
     loading.value = false
   }
+}
+
+function onGoogleSuccess() {
+  const redirect = (route.query.redirect as string) || '/inicio'
+  router.push(redirect)
+}
+
+function onGoogleError(message: string) {
+  error.value = message
 }
 
 async function resend() {
@@ -73,6 +83,8 @@ async function resend() {
         {{ loading ? 'Entrando…' : 'Entrar' }}
       </button>
     </form>
+
+    <GoogleSignInButton @success="onGoogleSuccess" @error="onGoogleError" />
 
     <div class="auth-links">
       <RouterLink to="/forgot-password" class="auth-link">Esqueci minha senha</RouterLink>

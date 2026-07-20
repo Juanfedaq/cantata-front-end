@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AuthShell from '@/components/AuthShell.vue'
+import GoogleSignInButton from '@/components/GoogleSignInButton.vue'
 import { authApi, ApiError } from '@/services/api'
+
+const router = useRouter()
+const route = useRoute()
 
 const name = ref('')
 const email = ref('')
@@ -40,6 +44,15 @@ async function onSubmit() {
     loading.value = false
   }
 }
+
+function onGoogleSuccess() {
+  const redirect = (route.query.redirect as string) || '/inicio'
+  router.push(redirect)
+}
+
+function onGoogleError(message: string) {
+  error.value = message
+}
 </script>
 
 <template>
@@ -72,6 +85,8 @@ async function onSubmit() {
         {{ loading ? 'Criando…' : 'Criar conta' }}
       </button>
     </form>
+
+    <GoogleSignInButton v-if="!success" @success="onGoogleSuccess" @error="onGoogleError" />
 
     <div class="auth-links">
       <span>Já tem conta?

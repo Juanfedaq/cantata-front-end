@@ -45,6 +45,15 @@ export const useAuthStore = defineStore('auth', () => {
     await bootstrap()
   }
 
+  /** Login/cadastro via "Entrar com o Google" — mesmo formato de resposta do login comum. */
+  async function loginWithGoogle(credential: string) {
+    const { token: newToken, user: newUser } = await authApi.googleLogin(credential)
+    token.value = newToken
+    setToken(newToken)
+    persistUser(newUser)
+    await bootstrap()
+  }
+
   /** Rebusca o usuário no servidor (ex.: após upgrade para artista). */
   async function refresh() {
     if (!token.value) return
@@ -77,5 +86,16 @@ export const useAuthStore = defineStore('auth', () => {
   // Qualquer 401 em chamada autenticada derruba a sessão local.
   setOnUnauthorized(logout)
 
-  return { token, user, isAuthenticated, isAdmin, isArtist, login, logout, bootstrap, refresh }
+  return {
+    token,
+    user,
+    isAuthenticated,
+    isAdmin,
+    isArtist,
+    login,
+    loginWithGoogle,
+    logout,
+    bootstrap,
+    refresh,
+  }
 })

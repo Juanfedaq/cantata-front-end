@@ -108,6 +108,14 @@ export const authApi = {
   login: (payload: { email: string; password: string }) =>
     request<{ token: string; user: AuthUser }>('/auth/login', { method: 'POST', body: payload }),
 
+  // `credential` é o ID token que o Google Identity Services devolve no
+  // frontend — o backend confere a assinatura e resolve/cria a conta.
+  googleLogin: (credential: string) =>
+    request<{ token: string; user: AuthUser }>('/auth/google', {
+      method: 'POST',
+      body: { credential },
+    }),
+
   verifyEmail: (token: string) =>
     request<{ message: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`),
 

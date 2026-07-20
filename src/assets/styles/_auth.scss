@@ -68,6 +68,27 @@
   background: rgba($color-success, 0.07);
 }
 
+// Separador entre o formulário e o login social (ex.: Google) — linha de
+// 1px com a legenda no meio, mesma gramática discreta do guia (§3).
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  margin: 0.25rem 0;
+  @include label-type;
+  font-size: 0.65rem;
+  color: $text-dim;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: $line;
+  }
+}
+
 .auth-links {
   display: flex;
   flex-direction: column;
