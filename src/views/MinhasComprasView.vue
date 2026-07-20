@@ -15,7 +15,7 @@ const downloadingId = ref<number | null>(null)
 onMounted(async () => {
   if (route.query.checkout === 'sucesso') {
     success.value =
-      'Pagamento aprovado! Sua compra aparece abaixo assim que o Stripe confirmar (alguns segundos).'
+      'Pagamento iniciado! No cartão a confirmação é quase imediata; no Pix ou boleto pode levar alguns minutos — a compra aparece abaixo como "Aguardando confirmação" até lá.'
   }
   try {
     purchases.value = (await purchasesApi.mine()).purchases
@@ -73,11 +73,16 @@ async function download(p: Purchase, file: { id: number; fileName: string | null
             {{ p.content.artist.name || 'Artista' }} ·
             {{ new Date(p.purchasedAt).toLocaleDateString('pt-BR') }} · {{ formatPrice(p.amountCents) }}
           </p>
+          <p v-if="p.status === 'pendente'" class="pending-badge">
+            Aguardando confirmação do pagamento (Pix/boleto podem levar alguns minutos)
+          </p>
         </div>
 
         <!-- Download não expira (spec §8); um botão por ARQUIVO, agrupado
-             por categoria do pacote -->
-        <div class="dl-group">
+             por categoria do pacote. Só aparece com pagamento confirmado —
+             enquanto 'pendente' (Pix/boleto), o download ainda é negado
+             pela API mesmo que o botão aparecesse (2026-07-20). -->
+        <div v-if="p.status === 'pago'" class="dl-group">
           <template v-for="item in p.content.items" :key="item.id">
             <button
               v-for="(file, fi) in item.files"
@@ -161,6 +166,12 @@ async function download(p: Purchase, file: { id: number; fileName: string | null
   margin-top: 0.25rem;
   font-size: 0.82rem;
   color: rgba(var(--fg-rgb), 0.55);
+}
+
+.pending-badge {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: $gold-text;
 }
 
 .dl-btn {

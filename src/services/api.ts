@@ -222,6 +222,9 @@ export interface Purchase {
   id: number
   amountCents: number
   purchasedAt: string
+  // 'pendente' = aguardando confirmação (Pix/boleto podem levar minutos);
+  // download só libera com 'pago' (2026-07-20, suporte a Pix).
+  status: 'pago' | 'pendente'
   content: {
     id: number
     title: string
