@@ -51,16 +51,20 @@ export const routes: RouteRecordRaw[] = [
         'Explore o catálogo de partituras do Cantata: busque por categoria, formação e nome. Obras com qualidade editorial e licenciamento claro.',
     },
   },
-  {
-    path: '/artistas',
-    name: 'artistas',
-    component: () => import('@/views/ArtistasView.vue'),
-    meta: {
-      title: 'Artistas',
-      description:
-        'Conheça os compositores do Cantata e explore as obras publicadas por cada um.',
-    },
-  },
+  // Vitrine com VÁRIOS artistas escondida por decisão de produto (2026-07-20
+  // — ver PROGRESS.md): por ora a plataforma trabalha só com o perfil do
+  // sócio (rota abaixo, que continua ativa). Comentado, não removido —
+  // reativar é só descomentar quando a vitrine plural voltar.
+  // {
+  //   path: '/artistas',
+  //   name: 'artistas',
+  //   component: () => import('@/views/ArtistasView.vue'),
+  //   meta: {
+  //     title: 'Artistas',
+  //     description:
+  //       'Conheça os compositores do Cantata e explore as obras publicadas por cada um.',
+  //   },
+  // },
   {
     path: '/artistas/:id',
     name: 'artista-perfil',

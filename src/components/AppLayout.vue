@@ -115,7 +115,10 @@ function logout() {
         <nav v-if="mobileOpen" class="mobile-panel">
           <RouterLink to="/inicio" @click="closeMobile">Início</RouterLink>
           <RouterLink to="/biblioteca" @click="closeMobile">Biblioteca</RouterLink>
+          <!-- Vitrine de vários artistas escondida (2026-07-20, ver
+               PROGRESS.md) — o link some junto com a rota comentada no router.
           <RouterLink to="/artistas" @click="closeMobile">Artistas</RouterLink>
+          -->
           <RouterLink v-if="auth.isAdmin" to="/admin" @click="closeMobile">Admin</RouterLink>
 
           <template v-if="auth.isAuthenticated">
@@ -133,9 +136,13 @@ function logout() {
             <RouterLink v-if="auth.isArtist" to="/artista/conteudos" @click="closeMobile">
               Meus Conteúdos
             </RouterLink>
+            <!-- CTA de virar artista comentado (2026-07-20, ver PROGRESS.md)
+                 — por ora não convidamos novos artistas a se cadastrar.
             <RouterLink v-else to="/perfil" class="sell-cta" @click="closeMobile">
               Vender no Cantata
             </RouterLink>
+            -->
+
 
             <template v-if="confirmingExit">
               <p class="exit-question">Sair da conta?</p>
@@ -163,7 +170,10 @@ function logout() {
       <nav class="menu">
         <RouterLink to="/inicio">Início</RouterLink>
         <RouterLink to="/biblioteca">Biblioteca</RouterLink>
+        <!-- Vitrine de vários artistas escondida (2026-07-20, ver
+             PROGRESS.md) — o link some junto com a rota comentada no router.
         <RouterLink to="/artistas">Artistas</RouterLink>
+        -->
         <RouterLink v-if="auth.isAdmin" to="/admin">Admin</RouterLink>
 
         <!-- Botão do usuário: foto (ou inicial colorida) + nome. Abre o
@@ -211,8 +221,8 @@ function logout() {
               >
                 Meus Conteúdos
               </RouterLink>
-              <!-- Quem ainda não é artista vê o convite (leva ao upgrade
-                   "Torne-se um artista" no Meu Perfil) -->
+              <!-- CTA de virar artista comentado (2026-07-20, ver
+                   PROGRESS.md) — por ora não convidamos novos artistas.
               <RouterLink
                 v-else
                 to="/perfil"
@@ -222,6 +232,8 @@ function logout() {
               >
                 Vender no Cantata
               </RouterLink>
+              -->
+
               <template v-if="confirmingExit">
                 <p class="exit-question" aria-live="polite">Sair da conta?</p>
                 <button type="button" class="item-btn exit-yes" role="menuitem" @click="logout">
@@ -266,11 +278,12 @@ function logout() {
     <footer class="footer">
       <p>Cantata — conteúdos musicais de quem cria para quem toca. 🎵</p>
       <nav class="footer-links">
-        <!-- /perfil abriga o convite "Torne-se um artista"; sem login, a
-             guarda manda para o login com redirect de volta. -->
+        <!-- CTA de virar artista comentado (2026-07-20, ver PROGRESS.md) —
+             por ora não convidamos novos artistas a se cadastrar.
         <RouterLink v-if="!auth.isArtist" to="/perfil" class="footer-link gold">
           Venda suas obras no Cantata
         </RouterLink>
+        -->
         <RouterLink to="/privacidade" class="footer-link">Política de Privacidade</RouterLink>
       </nav>
     </footer>

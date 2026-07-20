@@ -4,11 +4,10 @@ import { RouterLink } from 'vue-router'
 import { motion, MotionConfig } from 'motion-v'
 import AppLayout from '@/components/AppLayout.vue'
 import ContentCard from '@/components/ContentCard.vue'
-import ArtistAvatar from '@/components/ArtistAvatar.vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
-import { artistsApi, catalogApi, type ArtistSummary, type CatalogItem, type Category } from '@/services/api'
+import PartnerSpotlight from '@/components/PartnerSpotlight.vue'
+import { catalogApi, type CatalogItem, type Category } from '@/services/api'
 import { useThemeStore } from '@/stores/theme'
-import { artistHue } from '@/utils/avatar'
 
 const theme = useThemeStore()
 
@@ -32,19 +31,13 @@ function rise(delay = 0, y = 24) {
 
 const categories = ref<Category[]>([])
 const latest = ref<CatalogItem[]>([])
-const newArtists = ref<ArtistSummary[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
   try {
-    const [cats, items, artists] = await Promise.all([
-      catalogApi.categories(),
-      catalogApi.list({ perPage: 8 }),
-      artistsApi.list({ order: 'recentes', limit: 4 }),
-    ])
+    const [cats, items] = await Promise.all([catalogApi.categories(), catalogApi.list({ perPage: 8 })])
     categories.value = cats.categories
     latest.value = items.items
-    newArtists.value = artists.artists
   } catch {
     // Home pública: falha de rede só deixa as seções vazias.
   } finally {
@@ -94,33 +87,10 @@ onMounted(async () => {
         </div>
       </motion.section>
 
-      <!-- Últimos artistas cadastrados: 4 blocos -->
-      <motion.section v-if="newArtists.length" class="section" v-bind="rise()">
-        <div class="section-head">
-          <h2 class="section-title">Últimos artistas</h2>
-          <RouterLink to="/artistas" class="section-link">Ver todos</RouterLink>
-        </div>
-        <div class="artists">
-          <MotionLink
-            v-for="(artist, i) in newArtists"
-            :key="artist.id"
-            :to="`/artistas/${artist.id}`"
-            class="artist-card"
-            :style="{ '--artist-hue': artistHue(artist.name) }"
-            v-bind="rise(i * 0.08, 18)"
-          >
-            <span class="waves" aria-hidden="true">
-              <span v-for="n in 16" :key="n" class="wave" :class="`wave-${n}`"></span>
-            </span>
-            <ArtistAvatar
-              class="artist-avatar"
-              :name="artist.name"
-              :avatar-path="artist.avatarPath"
-              :size="88"
-            />
-            <span class="artist-name">{{ artist.name || 'Artista' }}</span>
-          </MotionLink>
-        </div>
+      <!-- Destaque do sócio (2026-07-20): substitui a vitrine de vários
+           artistas enquanto ela fica escondida — ver PROGRESS.md. -->
+      <motion.section class="section" v-bind="rise()">
+        <PartnerSpotlight />
       </motion.section>
 
       <!-- Últimos lançamentos -->
@@ -232,107 +202,6 @@ onMounted(async () => {
   font-family: $font-display;
   font-size: 1.4rem;
   margin-bottom: 1.25rem;
-}
-
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-
-  .section-title {
-    margin-bottom: 1.25rem;
-  }
-}
-
-.section-link {
-  @include label-type;
-  font-size: 0.7rem;
-  color: $gold-text;
-  text-decoration: none;
-  transition: color 0.5s $ease-brand;
-
-  &:hover {
-    color: $color-white;
-  }
-}
-
-// Últimos artistas: grupo blocado colado (guia §3), 4 blocos com
-// avatar circular (exceção do guia §8), nome e contagem; hover-luz.
-.artists {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-// Cada bloco recebe --artist-hue (hash do nome, estilo Google): o fundo é
-// um tinte translúcido dessa matiz (convive com os dois temas) e o avatar
-// é a cor cheia, dessaturada para caber no tom editorial.
-// Bloco compacto de altura fixa (a largura vem do grid): avatar e ondas
-// cravados no CENTRO exato; o nome ancora na base, acima das ondas.
-// A altura comporta o avatar de 88px com folga para o nome — diminuir o
-// box não diminui a imagem.
-.artist-card {
-  position: relative;
-  display: block;
-  height: 200px;
-  border: 1px solid $line;
-  margin: 0 -1px -1px 0;
-  color: $color-white;
-  text-decoration: none;
-  // Tinta do artista em versão opaca (mistura com o fundo): o backdrop
-  // global de anéis não atravessa o bloco.
-  background: color-mix(in srgb, hsl(var(--artist-hue) 45% 50%) 7%, rgb(var(--bg-rgb)));
-  overflow: hidden; // recorta os anéis que passam da moldura
-  transition: background-color 0.5s $ease-brand;
-  // Sem gesto global de hover (2026-07-09): a onda sonora dos anéis já é
-  // o gesto do hover destes blocos.
-
-  &:hover {
-    background: color-mix(in srgb, hsl(var(--artist-hue) 45% 50%) 13%, rgb(var(--bg-rgb)));
-
-    .artist-name {
-      color: $gold-text;
-    }
-
-    .artist-avatar {
-      transform: translate(-50%, -50%) scale(1.08);
-    }
-
-    .wave {
-      animation: sound-wave 1.8s $ease-brand infinite;
-    }
-  }
-}
-
-// Visual do avatar vem do componente ArtistAvatar; aqui só o encaixe:
-// centro exato do bloco, acima das ondas. Cresce um pouco no hover —
-// como é absoluto e o nome é ancorado à base, nada se desloca.
-.artist-avatar {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 1;
-  transition: transform 0.5s $ease-brand;
-}
-
-// Onda sonora ocupando o fundo do bloco (mixin global do guia):
-// anéis no mesmo centro do avatar (50% = centro do bloco).
-@include artist-waves(88px, 50%);
-
-// Nome na base do bloco, acima da camada das ondas.
-.artist-name {
-  position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  bottom: 1.1rem;
-  text-align: center;
-  font-family: $font-display;
-  font-size: 1.1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 0.5s $ease-brand;
 }
 
 // Grupo blocado (guia §3): categorias coladas, sem gap; as bordas de 1px
