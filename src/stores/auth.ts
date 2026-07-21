@@ -8,13 +8,12 @@ import {
   setOnUnauthorized,
   type AuthUser,
 } from '@/services/api'
+import { safeStorage } from '@/utils/safeStorage'
 
 const USER_KEY = 'cantata_user'
 
 function loadUser(): AuthUser | null {
-  // Pré-renderização (Node): sem localStorage — visitante anônimo.
-  if (typeof localStorage === 'undefined') return null
-  const raw = localStorage.getItem(USER_KEY)
+  const raw = safeStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
     return JSON.parse(raw) as AuthUser
@@ -33,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function persistUser(value: AuthUser) {
     user.value = value
-    localStorage.setItem(USER_KEY, JSON.stringify(value))
+    safeStorage.setItem(USER_KEY, JSON.stringify(value))
   }
 
   async function login(email: string, password: string) {
@@ -65,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     clearToken()
-    localStorage.removeItem(USER_KEY)
+    safeStorage.removeItem(USER_KEY)
   }
 
   /**

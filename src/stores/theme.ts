@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { safeStorage } from '@/utils/safeStorage'
 
 // Tema claro/escuro da plataforma — mesmo sistema (e mesma chave de
 // localStorage) da ComingSoonView, para a escolha valer nos dois lados.
@@ -12,7 +13,7 @@ const THEME_KEY = 'cantata-theme'
 function resolveInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'dark'
   const fromQuery = new URLSearchParams(window.location.search).get('theme')
-  const stored = localStorage.getItem(THEME_KEY)
+  const stored = safeStorage.getItem(THEME_KEY)
   return fromQuery === 'light' || fromQuery === 'dark'
     ? fromQuery
     : stored === 'light' || stored === 'dark'
@@ -33,7 +34,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   function toggle() {
     theme.value = isDark.value ? 'light' : 'dark'
-    localStorage.setItem(THEME_KEY, theme.value)
+    safeStorage.setItem(THEME_KEY, theme.value)
   }
 
   // Aplica o tema no <html> (troca as CSS vars --bg-rgb/--fg-rgb do main.scss)

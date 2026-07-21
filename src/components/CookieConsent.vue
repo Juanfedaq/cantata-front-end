@@ -5,6 +5,7 @@
 // e o modal não volta a aparecer.
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { safeStorage } from '@/utils/safeStorage'
 
 const STORAGE_KEY = 'cantata-cookies-aceitos'
 
@@ -13,11 +14,11 @@ const STORAGE_KEY = 'cantata-cookies-aceitos'
 const visible = ref(false)
 
 onMounted(() => {
-  visible.value = !localStorage.getItem(STORAGE_KEY)
+  visible.value = !safeStorage.getItem(STORAGE_KEY)
 })
 
 function accept() {
-  localStorage.setItem(STORAGE_KEY, new Date().toISOString())
+  safeStorage.setItem(STORAGE_KEY, new Date().toISOString())
   visible.value = false
 }
 </script>

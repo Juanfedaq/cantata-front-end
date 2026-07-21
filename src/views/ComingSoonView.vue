@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { safeStorage } from '@/utils/safeStorage'
 
 // -------- Tema (escuro padrão / claro) --------
 type Theme = 'dark' | 'light'
@@ -10,7 +11,7 @@ const THEME_KEY = 'cantata-theme'
 function resolveInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'dark'
   const fromQuery = new URLSearchParams(window.location.search).get('theme')
-  const stored = localStorage.getItem(THEME_KEY)
+  const stored = safeStorage.getItem(THEME_KEY)
   return fromQuery === 'light' || fromQuery === 'dark'
     ? fromQuery
     : stored === 'light' || stored === 'dark'
@@ -28,7 +29,7 @@ const iconSrc = computed(() => (isDark.value ? '/icon.svg' : '/icon-black.svg'))
 
 function toggleTheme() {
   theme.value = isDark.value ? 'light' : 'dark'
-  localStorage.setItem(THEME_KEY, theme.value)
+  safeStorage.setItem(THEME_KEY, theme.value)
 }
 
 // Mantém a UI do browser (barra mobile) na cor do tema.
