@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
 import { fileUrl, formatPrice, type CategoryRef, type Musical } from '@/services/api'
+import { useSpotlightStore } from '@/stores/spotlight'
 
 // Obras são pacotes: `categories` são as tags do que o pacote inclui.
 // `musical` (2026-07-22): obra de musical (data especial) ganha badge
 // sobre a capa que a diferencia do conteúdo padrão.
-defineProps<{
+const props = defineProps<{
   id: number
   title: string
   priceCents: number
@@ -15,10 +17,30 @@ defineProps<{
   artistId?: number
   artistName?: string | null
 }>()
+
+// Hover/foco publica a capa no fundo da página (CoverSpotlight): a imagem
+// aparece grande em perspectiva lateral atrás do conteúdo. Sem capa, nada
+// acontece. O unmount esconde (navegação com o mouse ainda sobre o card).
+const spotlight = useSpotlightStore()
+
+function spotlightShow() {
+  const url = fileUrl(props.coverPath)
+  if (url) spotlight.show(url)
+}
+
+onBeforeUnmount(() => spotlight.hide())
 </script>
 
 <template>
-  <RouterLink :to="`/conteudo/${id}`" class="card" :class="{ 'is-musical': !!musical }">
+  <RouterLink
+    :to="`/conteudo/${id}`"
+    class="card"
+    :class="{ 'is-musical': !!musical }"
+    @mouseenter="spotlightShow"
+    @mouseleave="spotlight.hide()"
+    @focusin="spotlightShow"
+    @focusout="spotlight.hide()"
+  >
     <div class="cover">
       <img v-if="coverPath" :src="fileUrl(coverPath) ?? undefined" :alt="title" />
       <span v-else class="cover-placeholder">🎵</span>

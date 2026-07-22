@@ -53,6 +53,14 @@ defineProps<{
       <path d="M12.2 12l3.9 3 1.3 3.8" />
     </template>
 
+    <!-- Musicais: máscara de teatro (datas especiais do ano) -->
+    <template v-else-if="slug === 'musicais'">
+      <path d="M5.5 4.6c3.2 1.5 9.8 1.5 13 0v6.6c0 5.2-3 8.8-6.5 8.8s-6.5-3.6-6.5-8.8V4.6Z" />
+      <path d="M8.7 10c.6-.8 1.7-.8 2.3 0" />
+      <path d="M13 10c.6-.8 1.7-.8 2.3 0" />
+      <path d="M9 13.6c1.7 1.9 4.3 1.9 6 0" />
+    </template>
+
     <!-- Todos: grade de quadrados — todas as categorias -->
     <template v-else-if="slug === 'todos'">
       <rect x="4" y="4" width="7" height="7" rx="1" />

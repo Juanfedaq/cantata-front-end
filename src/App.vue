@@ -3,6 +3,7 @@ import { watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import AppBackdrop from '@/components/AppBackdrop.vue'
 import CookieConsent from '@/components/CookieConsent.vue'
+import CoverSpotlight from '@/components/CoverSpotlight.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useDefaultSeo } from '@/composables/useSeo'
@@ -36,6 +37,9 @@ watch(
        RouterView, então não reinicia ao trocar de view. A ComingSoon
        (rota "/", intocável) fica sem ele. -->
   <AppBackdrop v-if="route.name !== 'coming-soon'" />
+  <!-- Capa em destaque no fundo (hover dos cards de obra): irmão do
+       backdrop, DEPOIS dele — paira sobre os anéis, atrás do conteúdo. -->
+  <CoverSpotlight v-if="route.name !== 'coming-soon'" />
   <RouterView />
   <!-- Aviso de cookies: global e persistente; fora da ComingSoon para
        manter a landing de pré-lançamento limpa. -->

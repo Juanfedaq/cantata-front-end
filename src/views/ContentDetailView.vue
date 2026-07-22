@@ -51,6 +51,56 @@ onMounted(async () => {
   }
 })
 
+// ---- Compartilhar ------------------------------------------------------------
+// Celular (e navegadores com Web Share API): painel NATIVO do sistema.
+// Desktop sem a API: mini painel blocado com redes + copiar link.
+const shareOpen = ref(false)
+const copied = ref(false)
+
+const shareUrl = computed(() =>
+  typeof window === 'undefined'
+    ? ''
+    : `${window.location.origin}/conteudo/${content.value?.id ?? route.params.id}`,
+)
+
+const shareText = computed(() =>
+  content.value
+    ? `${content.value.title} — ${content.value.artist.name ?? 'artista'} no Cantata`
+    : 'Cantata',
+)
+
+const shareLinks = computed(() => {
+  const url = encodeURIComponent(shareUrl.value)
+  const text = encodeURIComponent(shareText.value)
+  return {
+    whatsapp: `https://wa.me/?text=${text}%20${url}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+    x: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+  }
+})
+
+async function share() {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: content.value?.title, text: shareText.value, url: shareUrl.value })
+    } catch {
+      // usuário fechou o painel nativo — nada a fazer
+    }
+    return
+  }
+  shareOpen.value = !shareOpen.value
+}
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 2000)
+  } catch {
+    // clipboard indisponível (contexto inseguro) — o usuário ainda tem as redes
+  }
+}
+
 async function buy() {
   if (!content.value) return
   if (!auth.isAuthenticated) {
@@ -121,6 +171,18 @@ async function buy() {
             </p>
           </template>
           <p v-if="buyError" class="error small">{{ buyError }}</p>
+
+          <!-- Compartilhar: nativo no celular; painel blocado no desktop -->
+          <button class="share-btn" @click="share">Compartilhar</button>
+          <div v-if="shareOpen" class="share-panel">
+            <a class="share-item" :href="shareLinks.whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+            <a class="share-item" :href="shareLinks.facebook" target="_blank" rel="noopener">Facebook</a>
+            <a class="share-item" :href="shareLinks.x" target="_blank" rel="noopener">X</a>
+            <button class="share-item" :class="{ copied }" @click="copyLink">
+              {{ copied ? 'Link copiado!' : 'Copiar link' }}
+            </button>
+          </div>
+
           <p class="muted small">Após a compra, o download fica disponível para sempre em "Minhas Compras".</p>
         </div>
       </div>
@@ -233,6 +295,34 @@ async function buy() {
 .buy-btn {
   @include block-button-primary;
   width: 100%;
+}
+
+// Compartilhar: botão secundário blocado sob o Comprar.
+.share-btn {
+  @include block-button;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+// Mini painel de redes: grupo blocado colado (guia §3), itens lado a lado.
+.share-panel {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.share-item {
+  @include block-chip;
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.68rem;
+  white-space: nowrap;
+
+  &.copied {
+    color: $gold-text;
+    background: $fill-active;
+  }
 }
 
 .muted {

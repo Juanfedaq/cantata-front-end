@@ -5,7 +5,6 @@ import { motion, MotionConfig } from 'motion-v'
 import AppLayout from '@/components/AppLayout.vue'
 import ContentCard from '@/components/ContentCard.vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
-import MusicalCard from '@/components/MusicalCard.vue'
 import PartnerSpotlight from '@/components/PartnerSpotlight.vue'
 import { catalogApi, type CatalogItem, type Category, type Musical } from '@/services/api'
 import { useThemeStore } from '@/stores/theme'
@@ -16,7 +15,6 @@ const theme = useThemeStore()
 // componente, então o estilo blocado — bordas coladas — fica intacto).
 const MotionLink = motion.create(RouterLink)
 const MotionContentCard = motion.create(ContentCard)
-const MotionMusicalCard = motion.create(MusicalCard)
 
 // Entrada das seções e cards na linguagem do riseIn do banner: véu +
 // subida no easing da marca, disparada quando o bloco entra na tela
@@ -73,30 +71,9 @@ onMounted(async () => {
          os cards escalonam (delay por índice). reduced-motion="user"
          respeita prefers-reduced-motion (mantém só o véu de opacidade). -->
     <MotionConfig reduced-motion="user">
-      <!-- Musicais (2026-07-22): classificação acima das categorias — um
-           repertório por data especial do ano. Blocos colados na tinta
-           DOURADA da marca (a cor da identidade dos musicais: badge e
-           sombra dos cards), linkando para a Biblioteca já filtrada. -->
-      <motion.section v-if="musicals.length" class="section" v-bind="rise()">
-        <div class="section-head">
-          <h2 class="section-title">Musicais</h2>
-          <RouterLink to="/biblioteca?tipo=musical" class="see-all">Ver todos</RouterLink>
-        </div>
-        <p class="section-lead">
-          Repertórios completos para as datas especiais do ano — cada musical reúne obras
-          pensadas para a celebração.
-        </p>
-        <div class="musicals">
-          <MotionMusicalCard
-            v-for="(m, i) in musicals"
-            :key="m.id"
-            :musical="m"
-            v-bind="rise(i * 0.06, 18)"
-          />
-        </div>
-      </motion.section>
-
-      <!-- Menu de categorias -->
+      <!-- Menu de categorias — inclui "Musicais" (2026-07-22) como se
+           fosse categoria (mesmo desenho, ícone de máscara na tinta
+           dourada da marca), levando à Biblioteca na aba Musicais. -->
       <motion.section class="section" v-bind="rise()">
         <h2 class="section-title">Categorias</h2>
         <div class="categories">
@@ -110,6 +87,15 @@ onMounted(async () => {
           >
             <CategoryIcon class="category-icon" :slug="cat.slug" :size="28" />
             <span>{{ cat.name }}</span>
+          </MotionLink>
+          <MotionLink
+            v-if="musicals.length"
+            to="/biblioteca?tipo=musical"
+            class="category-card musicais"
+            v-bind="rise(categories.length * 0.06, 18)"
+          >
+            <CategoryIcon class="category-icon" slug="musicais" :size="28" />
+            <span>Musicais</span>
           </MotionLink>
         </div>
       </motion.section>
@@ -230,44 +216,6 @@ onMounted(async () => {
   font-family: $font-display;
   font-size: 1.4rem;
   margin-bottom: 1.25rem;
-}
-
-// Cabeçalho de seção com link "Ver todos" na mesma linha do título.
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-
-  .section-title {
-    margin-bottom: 0;
-  }
-}
-
-.see-all {
-  @include label-type;
-  font-size: 0.72rem;
-  color: $gold-text;
-  text-decoration: none;
-  transition: color 0.5s $ease-brand;
-
-  &:hover {
-    color: $gold-strong;
-  }
-}
-
-.section-lead {
-  margin: 0.5rem 0 1.25rem;
-  max-width: 560px;
-  font-size: 0.92rem;
-  color: rgba(var(--fg-rgb), 0.55);
-}
-
-// Grupo blocado dos musicais (guia §3): blocos colados, sem gap — o card
-// em si vive em MusicalCard.vue (como o ContentCard, o grid fica no pai).
-.musicals {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 // Grupo blocado (guia §3): categorias coladas, sem gap; as bordas de 1px

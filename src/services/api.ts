@@ -263,6 +263,7 @@ export const catalogApi = {
   list: (params: {
     page?: number
     perPage?: number
+    // Um slug ou vários separados por vírgula (filtro acumulativo — OR).
     category?: string
     subcategories?: number[]
     q?: string
@@ -270,6 +271,8 @@ export const catalogApi = {
     // `musical` (id) restringe a uma data especial específica.
     tipo?: 'padrao' | 'musical'
     musical?: number
+    // Ordenação (whitelist do backend); ausente = mais recentes.
+    order?: 'recentes' | 'titulo-az' | 'titulo-za' | 'preco-desc' | 'preco-asc'
   } = {}) => {
     const query = new URLSearchParams()
     if (params.page) query.set('page', String(params.page))
@@ -279,6 +282,7 @@ export const catalogApi = {
     if (params.q) query.set('q', params.q)
     if (params.tipo) query.set('tipo', params.tipo)
     if (params.musical) query.set('musical', String(params.musical))
+    if (params.order) query.set('order', params.order)
     const qs = query.toString()
     return request<{
       items: CatalogItem[]

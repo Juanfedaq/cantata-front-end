@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { motion, MotionConfig } from 'motion-v'
 import AppLayout from '@/components/AppLayout.vue'
@@ -42,8 +42,54 @@ const page = ref(1)
 const totalPages = ref(1)
 const total = ref(0)
 const q = ref('')
-const selectedCategory = ref<string>((route.query.categoria as string) || '')
+// Filtro ACUMULATIVO (2026-07-22): várias categorias ao mesmo tempo (OR
+// entre elas — o pacote contém qualquer uma); "Musicais" entra na mesma
+// linha como se fosse categoria (restringe junto: categorias E musical).
+const selectedCategories = ref<string[]>(
+  String(route.query.categoria || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+)
 const selectedSubs = ref<number[]>([])
+
+// Ordenação (2026-07-22): dropdown "Ordenar por…" PERSONALIZADO na linha
+// dos chips (painel blocado, mesmo padrão do menu do usuário no header).
+// Vazio = padrão do backend (mais recentes). Espelhada na URL (?ordem=).
+type Order = '' | 'titulo-az' | 'titulo-za' | 'recentes' | 'preco-desc' | 'preco-asc'
+const ORDER_OPTIONS: { value: Order; label: string }[] = [
+  { value: 'titulo-az', label: 'A–Z' },
+  { value: 'titulo-za', label: 'Z–A' },
+  { value: 'recentes', label: 'Data (mais recentes)' },
+  { value: 'preco-desc', label: 'Preço: maior → menor' },
+  { value: 'preco-asc', label: 'Preço: menor → maior' },
+]
+const order = ref<Order>(
+  ORDER_OPTIONS.some((o) => o.value === route.query.ordem)
+    ? (String(route.query.ordem) as Order)
+    : '',
+)
+const orderOpen = ref(false)
+const orderRef = ref<HTMLElement | null>(null)
+
+const orderLabel = computed(
+  () => ORDER_OPTIONS.find((o) => o.value === order.value)?.label ?? 'Ordenar por…',
+)
+
+function pickOrder(value: Order) {
+  order.value = value
+  orderOpen.value = false
+}
+
+// Fecha em clique-fora (pointerdown — ver lição do dropdown do header no
+// PROGRESS.md: item que re-renderiza no clique falha o contains no click)
+// e em Escape.
+function onDocPointerDown(e: PointerEvent) {
+  if (orderOpen.value && !orderRef.value?.contains(e.target as Node)) orderOpen.value = false
+}
+function onDocKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') orderOpen.value = false
+}
 
 // Musicais (2026-07-22): classificação ACIMA das categorias — aba
 // Todos × Conteúdo padrão × Musicais; dentro de Musicais, filtro pela
@@ -64,22 +110,40 @@ const selectedMusical = ref<number | null>(
     : null,
 )
 
-/** Espelha os filtros compartilháveis (categoria/tipo/musical) na URL. */
+/** Espelha os filtros compartilháveis (categorias/tipo/musical) na URL. */
 function syncQuery() {
   const query: Record<string, string> = {}
-  if (selectedCategory.value) query.categoria = selectedCategory.value
+  if (selectedCategories.value.length) query.categoria = selectedCategories.value.join(',')
   if (selectedTipo.value) query.tipo = selectedTipo.value
   if (selectedTipo.value === 'musical' && selectedMusical.value) {
     query.musical = String(selectedMusical.value)
   }
+  if (order.value) query.ordem = order.value
   router.replace({ query })
 }
 
-function selectTipo(tipo: Tipo) {
-  selectedTipo.value = tipo
-  if (tipo !== 'musical') selectedMusical.value = null
+function toggleCategory(slug: string) {
+  const idx = selectedCategories.value.indexOf(slug)
+  if (idx >= 0) selectedCategories.value.splice(idx, 1)
+  else selectedCategories.value.push(slug)
   syncQuery()
 }
+
+function toggleMusical() {
+  selectedTipo.value = selectedTipo.value === 'musical' ? '' : 'musical'
+  if (selectedTipo.value !== 'musical') selectedMusical.value = null
+  syncQuery()
+}
+
+/** "Todos": limpa categorias e musical de uma vez. */
+function clearFilters() {
+  selectedCategories.value = []
+  selectedTipo.value = ''
+  selectedMusical.value = null
+  syncQuery()
+}
+
+const nothingSelected = computed(() => !selectedCategories.value.length && !selectedTipo.value)
 
 function selectMusical(id: number) {
   selectedMusical.value = selectedMusical.value === id ? null : id
@@ -108,11 +172,12 @@ async function fetchItems() {
     const res = await catalogApi.list({
       page: page.value,
       perPage: 12,
-      category: selectedCategory.value || undefined,
+      category: selectedCategories.value.join(',') || undefined,
       subcategories: selectedSubs.value,
       q: q.value || undefined,
       tipo: selectedTipo.value || undefined,
       musical: selectedTipo.value === 'musical' ? selectedMusical.value ?? undefined : undefined,
+      order: order.value || undefined,
     })
     items.value = res.items
     totalPages.value = res.totalPages
@@ -130,20 +195,18 @@ function toggleSub(id: number) {
   else selectedSubs.value.push(id)
 }
 
-function selectCategory(slug: string) {
-  selectedCategory.value = selectedCategory.value === slug ? '' : slug
-  syncQuery()
-}
-
 // Filtros/busca voltam à página 1 e recarregam.
-watch([selectedCategory, selectedSubs, q, selectedTipo, selectedMusical], () => {
+watch([selectedCategories, selectedSubs, q, selectedTipo, selectedMusical, order], () => {
   page.value = 1
+  syncQuery()
   fetchItems()
 }, { deep: true })
 
 watch(page, fetchItems)
 
 onMounted(async () => {
+  document.addEventListener('pointerdown', onDocPointerDown)
+  document.addEventListener('keydown', onDocKeydown)
   try {
     const cats = await catalogApi.categories()
     categories.value = cats.categories
@@ -153,6 +216,11 @@ onMounted(async () => {
     // Filtros indisponíveis não impedem a listagem.
   }
   fetchItems()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocPointerDown)
+  document.removeEventListener('keydown', onDocKeydown)
 })
 </script>
 
@@ -165,16 +233,16 @@ onMounted(async () => {
     <MotionConfig reduced-motion="user">
       <motion.h1 class="page-title" v-bind="rise()">Biblioteca</motion.h1>
 
-      <!-- Busca + filtro de categoria -->
+      <!-- Busca em cima; abaixo, UMA linha de chips ACUMULATIVOS: "Todos"
+           limpa tudo, categorias somam entre si (OR) e "Musicais" entra
+           como categoria (restringe junto das selecionadas). -->
       <motion.div class="toolbar" v-bind="rise(0.08)">
         <input v-model.lazy="q" type="search" class="search" placeholder="Buscar por título ou artista…" />
         <div class="chips">
-          <!-- "Todos" limpa o filtro de categoria (ativo quando nenhum slug
-               está selecionado); o ícone é a nota genérica do CategoryIcon. -->
           <button
             class="chip"
-            :class="{ active: selectedCategory === '' }"
-            @click="selectCategory('')"
+            :class="{ active: nothingSelected }"
+            @click="clearFilters"
           >
             <CategoryIcon class="chip-icon" slug="todos" :size="16" />
             Todos
@@ -183,39 +251,66 @@ onMounted(async () => {
             v-for="cat in categories"
             :key="cat.id"
             class="chip"
-            :class="[cat.slug, { active: selectedCategory === cat.slug }]"
-            @click="selectCategory(cat.slug)"
+            :class="[cat.slug, { active: selectedCategories.includes(cat.slug) }]"
+            @click="toggleCategory(cat.slug)"
           >
             <CategoryIcon class="chip-icon" :slug="cat.slug" :size="16" />
             {{ cat.name }}
           </button>
+          <button
+            class="chip musicais"
+            :class="{ active: selectedTipo === 'musical' }"
+            @click="toggleMusical"
+          >
+            <CategoryIcon class="chip-icon" slug="musicais" :size="16" />
+            Musicais
+          </button>
+          <!-- Ordenação: dropdown personalizado blocado (padrão do menu do
+               usuário no header: painel colado, fecha fora/Escape) -->
+          <div ref="orderRef" class="order">
+            <button
+              type="button"
+              class="order-btn"
+              :class="{ active: order !== '' }"
+              aria-haspopup="listbox"
+              :aria-expanded="orderOpen"
+              @click="orderOpen = !orderOpen"
+            >
+              {{ orderLabel }}
+              <svg
+                class="order-arrow"
+                :class="{ open: orderOpen }"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <Transition name="drop">
+              <ul v-if="orderOpen" class="order-menu" role="listbox" aria-label="Ordenar por">
+                <li v-for="opt in ORDER_OPTIONS" :key="opt.value">
+                  <button
+                    type="button"
+                    role="option"
+                    class="order-item"
+                    :class="{ selected: order === opt.value }"
+                    :aria-selected="order === opt.value"
+                    @click="pickOrder(opt.value)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </li>
+              </ul>
+            </Transition>
+          </div>
         </div>
-      </motion.div>
-
-      <!-- Tipo de conteúdo (acima das categorias): padrão × musicais -->
-      <motion.div class="sub-group" v-bind="rise(0.11)">
-        <span class="sub-label">Tipo:</span>
-        <button
-          class="chip small"
-          :class="{ active: selectedTipo === '' }"
-          @click="selectTipo('')"
-        >
-          Todos
-        </button>
-        <button
-          class="chip small"
-          :class="{ active: selectedTipo === 'padrao' }"
-          @click="selectTipo('padrao')"
-        >
-          Conteúdo padrão
-        </button>
-        <button
-          class="chip small"
-          :class="{ active: selectedTipo === 'musical' }"
-          @click="selectTipo('musical')"
-        >
-          Musicais
-        </button>
       </motion.div>
 
       <!-- Dentro de Musicais: filtro pela data especial -->
@@ -288,25 +383,33 @@ onMounted(async () => {
   margin-bottom: 1.5rem;
 }
 
+// Busca numa linha; a linha única de chips vem logo abaixo.
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
 .search {
   @include block-input;
-  flex: 1;
-  min-width: 220px;
+  width: 100%;
 }
 
 // Grupo blocado (guia §3): chips colados, sem pílulas; bordas de 1px
-// sobrepostas pelo mixin block-chip.
+// sobrepostas pelo mixin block-chip. A linha ocupa o contêiner INTEIRO e
+// os botões dividem a largura por igual (flex: 1).
 .chips {
   display: flex;
   flex-wrap: wrap;
+  width: 100%;
+
+  // 1 0 auto: crescem para preencher a linha inteira, mas nunca ficam
+  // menores que o próprio rótulo (nada cortado; no estreito quebram).
+  > .chip {
+    flex: 1 0 auto;
+    justify-content: center;
+  }
 }
 
 .chip {
@@ -340,6 +443,107 @@ onMounted(async () => {
 .chip-icon {
   color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
   flex-shrink: 0;
+}
+
+// Dropdown de ordenação personalizado: gatilho com o desenho dos chips
+// (blocado, colado no grupo) e painel blocado ancorado abaixo (mesmo
+// padrão do menu do usuário no header).
+.order {
+  position: relative;
+  margin: 0 -1px -1px 0;
+  flex: 1 0 auto;
+  display: flex;
+}
+
+.order-btn {
+  @include label-type;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 0.5rem;
+  white-space: nowrap;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid $line;
+  border-radius: 0;
+  background: $color-back;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
+
+  &:hover {
+    color: $color-white;
+    background: $fill-hover-solid;
+  }
+
+  &.active {
+    color: $gold-text;
+    background: $fill-active-solid;
+  }
+}
+
+// Seta da família dos ícones do sistema; gira com o painel aberto.
+.order-arrow {
+  transition: transform 0.5s $ease-brand;
+
+  &.open {
+    transform: rotate(180deg);
+  }
+}
+
+// Painel: moldura 1px, itens colados separados por linha, fundo OPACO
+// (vitrine — o backdrop de anéis não pode atravessar), acima do grid.
+.order-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  min-width: 100%;
+  margin-top: -1px;
+  list-style: none;
+  padding: 0;
+  border: 1px solid $line;
+  background: $color-back;
+
+  li + li {
+    border-top: 1px solid $line;
+  }
+}
+
+.order-item {
+  @include label-type;
+  display: block;
+  width: 100%;
+  padding: 0.6rem 1.1rem;
+  border: none;
+  background: none;
+  color: $text-secondary;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
+
+  &:hover {
+    color: $color-white;
+    background: $fill-hover-solid;
+  }
+
+  &.selected {
+    color: $gold-text;
+    background: $fill-active-solid;
+  }
+}
+
+// Entrada/saída do painel: véu + descida leve (padrão dos dropdowns).
+.drop-enter-active,
+.drop-leave-active {
+  transition: opacity 0.35s $ease-brand, transform 0.35s $ease-brand;
+}
+
+.drop-enter-from,
+.drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 // Chips diretos no contêiner: sem gap (colados); o respiro fica só
