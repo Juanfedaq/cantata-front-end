@@ -166,5 +166,20 @@ Referência de implementação: `HomeView.vue` (seção "Últimos artistas") e
   42/âmbar, cifras 150/verde, coreografias 335/rosé — sempre via mixin
   `category-tag` (S/L travadas; texto adapta por tema via `--cat-tag-l`)).
 - Sombras (`box-shadow`) — profundidade vem de translucidez e linhas.
+  **Exceção registrada (2026-07-22, pedido do time):** `ContentCard.vue`
+  leva sombra DIFUSA "premium" — preta, baixa e espalhada
+  (`0 14px 32px -18px rgba(0,0,0,0.45)`), **FIXA no conteúdo padrão**
+  (sem efeito de hover na sombra). **No tema escuro** a sombra preta some
+  sobre o fundo `#11100d`, então a profundidade vem de um halo dourado bem
+  fraco (`rgba($color-primary, 0.18)`, também fixo) via
+  `[data-theme='dark'] &`. **Card de MUSICAL** (`.is-musical`): a sombra
+  inteira vira o dourado da marca (`rgba($color-primary, 0.4–0.45)`) e é o
+  ÚNICO que aprofunda no hover (`0.55–0.6`) — segundo diferenciador do
+  card, junto com o badge. A capa do musical também "RESPIRA": zoom em
+  loop lento e fino (`scale 1 → 1.06` em 9s, alternate, só
+  transform/GPU; recorte por `overflow: hidden` no `.cover`; guarda de
+  `prefers-reduced-motion` inclusa). Sombra dura/deslocada segue proibida;
+  sem `translateY` no hover (o transform inline dos cards é do motion-v —
+  a animação da capa fica no `img`, que o motion-v não toca).
 - Gradientes roxos/azuis, glassmorphism genérico, uppercase em dados.
 - Transições lineares ou instantâneas em elementos interativos.

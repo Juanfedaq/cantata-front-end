@@ -11,11 +11,12 @@ import {
   type AdminPurchase,
   type AdminUser,
   type ContentStatus,
+  type Musical,
   type Subcategory,
   type SubcategoryType,
 } from '@/services/api'
 
-type Tab = 'moderacao' | 'usuarios' | 'compras' | 'subcategorias'
+type Tab = 'moderacao' | 'usuarios' | 'compras' | 'subcategorias' | 'musicais'
 const tab = ref<Tab>('moderacao')
 const error = ref('')
 
@@ -147,11 +148,47 @@ async function deactivateSub(sub: Subcategory) {
   }
 }
 
+// ---- Musicais (datas especiais — classificação acima das categorias) ----
+// Mesmo padrão das subcategorias: criar + desativar (sem exclusão — obras
+// podem apontar para o musical; desativado some dos formulários/filtros).
+const musicals = ref<Musical[]>([])
+const newMusicalName = ref('')
+
+async function loadMusicals() {
+  try {
+    musicals.value = (await catalogApi.categories()).musicals
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao listar musicais.'
+  }
+}
+
+async function createMusical() {
+  if (!newMusicalName.value.trim()) return
+  error.value = ''
+  try {
+    const { musical } = await adminApi.createMusical(newMusicalName.value.trim())
+    musicals.value.push(musical)
+    newMusicalName.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao criar musical.'
+  }
+}
+
+async function deactivateMusical(m: Musical) {
+  try {
+    await adminApi.updateMusical(m.id, { active: false })
+    musicals.value = musicals.value.filter((x) => x.id !== m.id)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao desativar.'
+  }
+}
+
 watch(tab, (t) => {
   error.value = ''
   if (t === 'moderacao') loadContents()
   else if (t === 'usuarios') loadUsers()
   else if (t === 'compras') loadPurchases()
+  else if (t === 'musicais') loadMusicals()
   else loadSubcategories()
 })
 
@@ -169,6 +206,7 @@ onMounted(loadContents)
       <button class="tab" :class="{ active: tab === 'usuarios' }" @click="tab = 'usuarios'">Usuários</button>
       <button class="tab" :class="{ active: tab === 'compras' }" @click="tab = 'compras'">Compras</button>
       <button class="tab" :class="{ active: tab === 'subcategorias' }" @click="tab = 'subcategorias'">Subcategorias</button>
+      <button class="tab" :class="{ active: tab === 'musicais' }" @click="tab = 'musicais'">Musicais</button>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -191,6 +229,7 @@ onMounted(loadContents)
         <li v-for="c in contents" :key="c.id" class="mod-item">
           <div class="mod-head">
             <strong class="mod-title">{{ c.title }}</strong>
+            <span v-if="c.musical" class="pill">🎭 Musical · {{ c.musical.name }}</span>
             <span class="muted">{{ c.items.map((i) => i.category.name).join(' · ') }} ·
               {{ formatPrice(c.priceCents) }} · {{ c.artist.name || c.artist.email }}</span>
           </div>
@@ -276,6 +315,26 @@ onMounted(loadContents)
           </tbody>
         </table>
       </div>
+    </section>
+
+    <!-- ================= Musicais ================= -->
+    <section v-else-if="tab === 'musicais'">
+      <p class="muted intro-note">
+        Musicais são a classificação acima das categorias: um para cada data especial do ano
+        (Natal, Dia das Mães…). O artista escolhe um deles ao publicar uma obra do tipo musical.
+        Desativar tira o musical dos formulários e filtros — as obras já vinculadas não mudam.
+      </p>
+      <div class="filter-row">
+        <input v-model="newMusicalName" type="text" placeholder="Nome do musical (ex.: Natal)" @keyup.enter="createMusical" />
+        <button class="ok-btn" @click="createMusical">Adicionar</button>
+      </div>
+
+      <ul class="sub-list">
+        <li v-for="m in musicals" :key="m.id">
+          {{ m.name }}
+          <button class="no-btn small-btn" @click="deactivateMusical(m)">desativar</button>
+        </li>
+      </ul>
     </section>
 
     <!-- ================= Subcategorias ================= -->
@@ -494,6 +553,13 @@ onMounted(loadContents)
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+// Nota explicativa no topo da aba Musicais.
+.intro-note {
+  max-width: 640px;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
 }
 
 .muted {

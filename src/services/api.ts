@@ -146,6 +146,14 @@ export interface Subcategory {
   name: string
 }
 
+// Musical (2026-07-22): classificação ACIMA das categorias — uma por data
+// especial do ano (Natal, Dia das Mães, …), administrável pelo admin.
+// Obra sem musical = "conteúdo padrão".
+export interface Musical {
+  id: number
+  name: string
+}
+
 // Referência de categoria usada nas tags das obras (pacotes).
 export interface CategoryRef {
   id?: number
@@ -176,6 +184,7 @@ export interface CatalogItem {
   priceCents: number
   coverPath: string | null
   publishedAt: string | null
+  musical: Musical | null
   categories: CategoryRef[]
   artist: { id: number; name: string | null }
 }
@@ -187,6 +196,7 @@ export interface CatalogDetail {
   priceCents: number
   coverPath: string | null
   publishedAt: string | null
+  musical: Musical | null
   items: ContentItem[]
   categories: CategoryRef[]
   artist: { id: number; name: string | null; bio: string | null }
@@ -213,6 +223,7 @@ export interface MyContent {
   salesCount: number
   /** Líquido acumulado do artista (centavos, valores congelados na venda). */
   salesNetCents: number
+  musical: Musical | null
   items: ContentItem[]
   categories: CategoryRef[]
 }
@@ -245,7 +256,9 @@ export interface Purchase {
 
 export const catalogApi = {
   categories: () =>
-    request<{ categories: Category[]; subcategories: Subcategory[] }>('/categories'),
+    request<{ categories: Category[]; subcategories: Subcategory[]; musicals: Musical[] }>(
+      '/categories',
+    ),
 
   list: (params: {
     page?: number
@@ -253,6 +266,10 @@ export const catalogApi = {
     category?: string
     subcategories?: number[]
     q?: string
+    // Classificação acima das categorias: 'padrao' | 'musical';
+    // `musical` (id) restringe a uma data especial específica.
+    tipo?: 'padrao' | 'musical'
+    musical?: number
   } = {}) => {
     const query = new URLSearchParams()
     if (params.page) query.set('page', String(params.page))
@@ -260,6 +277,8 @@ export const catalogApi = {
     if (params.category) query.set('category', params.category)
     if (params.subcategories?.length) query.set('subcategories', params.subcategories.join(','))
     if (params.q) query.set('q', params.q)
+    if (params.tipo) query.set('tipo', params.tipo)
+    if (params.musical) query.set('musical', String(params.musical))
     const qs = query.toString()
     return request<{
       items: CatalogItem[]
@@ -451,6 +470,7 @@ export interface AdminContent {
   coverPath: string | null
   createdAt: string
   updatedAt: string
+  musical: Musical | null
   items: ContentItem[]
   artist: { id: number; name: string | null; email: string }
 }
@@ -510,6 +530,22 @@ export const adminApi = {
 
   updateSubcategory: (id: number, payload: { name?: string; active?: boolean }) =>
     request<{ message: string }>(`/categories/subcategories/${id}`, {
+      method: 'PUT',
+      body: payload,
+      auth: true,
+    }),
+
+  // Musicais (datas especiais) — mesmo padrão das subcategorias: sem
+  // exclusão, o admin desativa (obras podem apontar para o musical).
+  createMusical: (name: string) =>
+    request<{ musical: Musical }>('/categories/musicals', {
+      method: 'POST',
+      body: { name },
+      auth: true,
+    }),
+
+  updateMusical: (id: number, payload: { name?: string; active?: boolean }) =>
+    request<{ message: string }>(`/categories/musicals/${id}`, {
       method: 'PUT',
       body: payload,
       auth: true,

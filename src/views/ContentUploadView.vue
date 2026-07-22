@@ -20,6 +20,7 @@ import {
   formatPrice,
   type Category,
   type FeeSimulation,
+  type Musical,
   type Subcategory,
   type SubcategoryType,
 } from '@/services/api'
@@ -35,6 +36,25 @@ const editingId = computed(() => {
 
 const categories = ref<Category[]>([])
 const subcategories = ref<Subcategory[]>([])
+
+// Musicais (2026-07-22): classificação ACIMA das categorias. Antes de tudo,
+// o artista escolhe se a obra é conteúdo PADRÃO ou um MUSICAL (data especial
+// — Natal, Dia das Mães, …); se musical, seleciona qual. O pacote por dentro
+// (categorias/arquivos/preço) continua idêntico.
+const musicals = ref<Musical[]>([])
+const contentKind = ref<'padrao' | 'musical'>('padrao')
+const musicalId = ref<number | null>(null)
+
+// Em edição, o musical salvo pode ter sido desativado pelo admin depois —
+// ele não vem em GET /categories, mas precisa aparecer no select (o backend
+// permite MANTER, só não escolher um inativo novo).
+const musicalOptions = computed(() => {
+  if (musicalId.value && !musicals.value.some((m) => m.id === musicalId.value) && editingMusical.value) {
+    return [...musicals.value, editingMusical.value]
+  }
+  return musicals.value
+})
+const editingMusical = ref<Musical | null>(null)
 
 const title = ref('')
 const description = ref('')
@@ -213,6 +233,7 @@ onMounted(async () => {
     const cats = await catalogApi.categories()
     categories.value = cats.categories
     subcategories.value = cats.subcategories
+    musicals.value = cats.musicals
     for (const cat of cats.categories) {
       areas.value[cat.slug] = blankArea()
     }
@@ -230,6 +251,11 @@ onMounted(async () => {
         description.value = current.description ?? ''
         priceReais.value = (current.priceCents / 100).toFixed(2)
         existingCoverPath.value = current.coverPath
+        if (current.musical) {
+          contentKind.value = 'musical'
+          musicalId.value = current.musical.id
+          editingMusical.value = current.musical
+        }
         for (const item of current.items) {
           const area = areas.value[item.category.slug]
           if (!area) continue
@@ -364,6 +390,9 @@ async function submit(asDraft: boolean) {
 
   const priceCents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
   if (!title.value.trim()) return (error.value = 'Informe o título.')
+  if (contentKind.value === 'musical' && !musicalId.value) {
+    return (error.value = 'Selecione qual musical (data especial) esta obra pertence.')
+  }
 
   // Validação por categoria: nova precisa de arquivos + prévia; mantida
   // não pode terminar sem arquivos.
@@ -392,6 +421,8 @@ async function submit(asDraft: boolean) {
   form.set('description', description.value.trim())
   form.set('priceCents', String(priceCents))
   form.set('subcategoryIds', JSON.stringify(selectedSubs.value))
+  // Vazio = conteúdo padrão (na edição, limpa um musical antes escolhido).
+  form.set('musicalId', contentKind.value === 'musical' && musicalId.value ? String(musicalId.value) : '')
   if (asDraft) form.set('draft', '1')
 
   const removeSlugs: string[] = []
@@ -463,6 +494,37 @@ async function submit(asDraft: boolean) {
     </div>
 
     <form class="form" @submit.prevent="submit(false)">
+      <!-- Tipo de conteúdo (acima de tudo): padrão × musical (data especial) -->
+      <div class="field">
+        <span>Tipo de conteúdo *</span>
+        <div class="chips">
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: contentKind === 'padrao' }"
+            @click="contentKind = 'padrao'"
+          >
+            Conteúdo padrão
+          </button>
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: contentKind === 'musical' }"
+            @click="contentKind = 'musical'"
+          >
+            Musical
+          </button>
+        </div>
+      </div>
+
+      <label v-if="contentKind === 'musical'" class="field narrow">
+        <span>Qual musical? * — cada um corresponde a uma data especial do ano</span>
+        <select v-model="musicalId">
+          <option :value="null" disabled>Selecione…</option>
+          <option v-for="m in musicalOptions" :key="m.id" :value="m.id">{{ m.name }}</option>
+        </select>
+      </label>
+
       <label class="field">
         <span>Título *</span>
         <input v-model="title" type="text" maxlength="190" required />
@@ -740,7 +802,8 @@ async function submit(asDraft: boolean) {
   }
 
   input[type='text'],
-  textarea {
+  textarea,
+  select {
     @include block-input;
   }
 
@@ -750,6 +813,10 @@ async function submit(asDraft: boolean) {
 
   &.narrow input {
     max-width: 160px;
+  }
+
+  &.narrow select {
+    max-width: 320px;
   }
 }
 

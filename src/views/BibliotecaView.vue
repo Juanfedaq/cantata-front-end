@@ -9,6 +9,7 @@ import {
   catalogApi,
   type CatalogItem,
   type Category,
+  type Musical,
   type Subcategory,
   type SubcategoryType,
 } from '@/services/api'
@@ -44,6 +45,47 @@ const q = ref('')
 const selectedCategory = ref<string>((route.query.categoria as string) || '')
 const selectedSubs = ref<number[]>([])
 
+// Musicais (2026-07-22): classificação ACIMA das categorias — aba
+// Todos × Conteúdo padrão × Musicais; dentro de Musicais, filtro pela
+// data especial (Natal, Dia das Mães, …). Ambos sincronizados na URL
+// (?tipo= / ?musical=) como o filtro de categoria.
+const musicals = ref<Musical[]>([])
+type Tipo = '' | 'padrao' | 'musical'
+const selectedTipo = ref<Tipo>(
+  route.query.musical
+    ? 'musical'
+    : ['padrao', 'musical'].includes(String(route.query.tipo))
+      ? (String(route.query.tipo) as Tipo)
+      : '',
+)
+const selectedMusical = ref<number | null>(
+  Number.isInteger(Number(route.query.musical)) && Number(route.query.musical) > 0
+    ? Number(route.query.musical)
+    : null,
+)
+
+/** Espelha os filtros compartilháveis (categoria/tipo/musical) na URL. */
+function syncQuery() {
+  const query: Record<string, string> = {}
+  if (selectedCategory.value) query.categoria = selectedCategory.value
+  if (selectedTipo.value) query.tipo = selectedTipo.value
+  if (selectedTipo.value === 'musical' && selectedMusical.value) {
+    query.musical = String(selectedMusical.value)
+  }
+  router.replace({ query })
+}
+
+function selectTipo(tipo: Tipo) {
+  selectedTipo.value = tipo
+  if (tipo !== 'musical') selectedMusical.value = null
+  syncQuery()
+}
+
+function selectMusical(id: number) {
+  selectedMusical.value = selectedMusical.value === id ? null : id
+  syncQuery()
+}
+
 const SUB_TYPE_LABELS: Record<SubcategoryType, string> = {
   instrumento: 'Instrumento',
   genero: 'Gênero',
@@ -69,6 +111,8 @@ async function fetchItems() {
       category: selectedCategory.value || undefined,
       subcategories: selectedSubs.value,
       q: q.value || undefined,
+      tipo: selectedTipo.value || undefined,
+      musical: selectedTipo.value === 'musical' ? selectedMusical.value ?? undefined : undefined,
     })
     items.value = res.items
     totalPages.value = res.totalPages
@@ -88,11 +132,11 @@ function toggleSub(id: number) {
 
 function selectCategory(slug: string) {
   selectedCategory.value = selectedCategory.value === slug ? '' : slug
-  router.replace({ query: selectedCategory.value ? { categoria: selectedCategory.value } : {} })
+  syncQuery()
 }
 
 // Filtros/busca voltam à página 1 e recarregam.
-watch([selectedCategory, selectedSubs, q], () => {
+watch([selectedCategory, selectedSubs, q, selectedTipo, selectedMusical], () => {
   page.value = 1
   fetchItems()
 }, { deep: true })
@@ -104,6 +148,7 @@ onMounted(async () => {
     const cats = await catalogApi.categories()
     categories.value = cats.categories
     subcategories.value = cats.subcategories
+    musicals.value = cats.musicals
   } catch {
     // Filtros indisponíveis não impedem a listagem.
   }
@@ -147,6 +192,46 @@ onMounted(async () => {
         </div>
       </motion.div>
 
+      <!-- Tipo de conteúdo (acima das categorias): padrão × musicais -->
+      <motion.div class="sub-group" v-bind="rise(0.11)">
+        <span class="sub-label">Tipo:</span>
+        <button
+          class="chip small"
+          :class="{ active: selectedTipo === '' }"
+          @click="selectTipo('')"
+        >
+          Todos
+        </button>
+        <button
+          class="chip small"
+          :class="{ active: selectedTipo === 'padrao' }"
+          @click="selectTipo('padrao')"
+        >
+          Conteúdo padrão
+        </button>
+        <button
+          class="chip small"
+          :class="{ active: selectedTipo === 'musical' }"
+          @click="selectTipo('musical')"
+        >
+          Musicais
+        </button>
+      </motion.div>
+
+      <!-- Dentro de Musicais: filtro pela data especial -->
+      <motion.div v-if="selectedTipo === 'musical' && musicals.length" class="sub-group" v-bind="rise(0.13)">
+        <span class="sub-label">Musical:</span>
+        <button
+          v-for="m in musicals"
+          :key="m.id"
+          class="chip small"
+          :class="{ active: selectedMusical === m.id }"
+          @click="selectMusical(m.id)"
+        >
+          {{ m.name }}
+        </button>
+      </motion.div>
+
       <!-- Filtros por subcategoria -->
       <motion.div
         v-for="(group, gi) in subsByType"
@@ -179,6 +264,7 @@ onMounted(async () => {
           :price-cents="item.priceCents"
           :cover-path="item.coverPath"
           :categories="item.categories"
+          :musical="item.musical"
           :artist-name="item.artist.name"
           :layout="true"
           v-bind="rise(i * 0.05, 18)"

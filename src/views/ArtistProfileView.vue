@@ -69,6 +69,7 @@ onMounted(async () => {
           :price-cents="item.priceCents"
           :cover-path="item.coverPath"
           :categories="item.categories"
+          :musical="item.musical"
         />
       </div>
     </template>
