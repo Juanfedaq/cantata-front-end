@@ -3,23 +3,19 @@
 // vitrine de vários artistas na Home enquanto ela fica escondida — ver
 // PROGRESS.md. Conteúdo 100% placeholder por enquanto; trocar pelos dados
 // reais quando o texto/foto estiverem prontos.
-import { computed } from 'vue'
-import { fileUrl } from '@/services/api'
-
 // TODO: trocar pelo id real do usuário/artista do sócio (users.id no banco)
 // assim que soubermos qual é — hoje aponta pro placeholder abaixo.
-const PARTNER_ARTIST_ID = 1
+const PARTNER_ARTIST_ID = 1;
 
-// TODO: nome, bio e foto reais do sócio. `photoPath` null = mostra o
-// placeholder (moldura com texto); trocar por um caminho de arquivo
-// público (ex.: vindo de fileUrl) quando a foto estiver definida.
-const partnerName = 'Nome do sócio'
-const partnerBio = `Texto biográfico do sócio entra aqui — quem é, sua trajetória com música
-e o porquê de ter criado o Cantata. Substituir este parágrafo de exemplo
-pelo texto real assim que estiver pronto.`
-const photoPath: string | null = null
+const partnerName = "Lucas Abdo Serrato";
+// String em UMA linha de propósito: o .bio usa white-space: pre-line, então
+// quebras no código virariam quebras visuais.
+const partnerBio =
+  "Professor, maestro e compositor, Lucas dedicou a vida à música da regência de coros e orquestras à sala de aula, formando novos músicos. Foi dessa vivência, e do desejo de ver partituras, arranjos e composições circularem e serem valorizados, que nasceu o Cantata: um lugar onde cada obra encontra quem precisa dela.";
 
-const photo = computed(() => fileUrl(photoPath))
+// Foto do sócio: arquivo estático em public/ (servido na raiz pelo Vite).
+// null volta ao placeholder "Foto em breve".
+const photo: string | null = "/abdo.webp";
 </script>
 
 <template>
@@ -33,7 +29,9 @@ const photo = computed(() => fileUrl(photoPath))
       <h2 class="section-title">Quem faz o Cantata</h2>
       <h3 class="name">{{ partnerName }}</h3>
       <p class="bio">{{ partnerBio }}</p>
-      <RouterLink :to="`/artistas/${PARTNER_ARTIST_ID}`" class="link">Ver obras publicadas</RouterLink>
+      <RouterLink :to="`/artistas/${PARTNER_ARTIST_ID}`" class="cta"
+        >Ver obras publicadas</RouterLink
+      >
     </div>
   </section>
 </template>
@@ -84,9 +82,10 @@ const photo = computed(() => fileUrl(photoPath))
 
 .name {
   font-family: $font-display;
-  font-size: 1.15rem;
+  font-size: clamp(2rem, 3.5vw, 3rem);
+  line-height: 1.1;
   color: $gold-text;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
 }
 
 .bio {
@@ -95,17 +94,9 @@ const photo = computed(() => fileUrl(photoPath))
   max-width: 480px;
 }
 
-.link {
-  display: inline-block;
-  margin-top: 1.25rem;
-  @include label-type;
-  font-size: 0.7rem;
-  color: $gold-text;
-  text-decoration: none;
-  transition: color 0.5s $ease-brand;
-
-  &:hover {
-    color: $color-white;
-  }
+// Mesmo padrão do CTA do banner da Home (guia): botão primário blocado.
+.cta {
+  @include block-button-primary;
+  margin-top: 1.75rem;
 }
 </style>

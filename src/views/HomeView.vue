@@ -1,51 +1,54 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import { motion, MotionConfig } from 'motion-v'
-import AppLayout from '@/components/AppLayout.vue'
-import ContentCard from '@/components/ContentCard.vue'
-import CategoryIcon from '@/components/CategoryIcon.vue'
-import PartnerSpotlight from '@/components/PartnerSpotlight.vue'
-import { catalogApi, type CatalogItem, type Category, type Musical } from '@/services/api'
-import { useThemeStore } from '@/stores/theme'
+import { onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
+import { motion, MotionConfig } from "motion-v";
+import AppLayout from "@/components/AppLayout.vue";
+import ContentCard from "@/components/ContentCard.vue";
+import CategoryIcon from "@/components/CategoryIcon.vue";
+import PartnerSpotlight from "@/components/PartnerSpotlight.vue";
+import { catalogApi, type CatalogItem, type Category, type Musical } from "@/services/api";
+import { useThemeStore } from "@/stores/theme";
 
-const theme = useThemeStore()
+const theme = useThemeStore();
 
 // Versões animáveis dos cards (motion.create repassa props/attrs ao
 // componente, então o estilo blocado — bordas coladas — fica intacto).
-const MotionLink = motion.create(RouterLink)
-const MotionContentCard = motion.create(ContentCard)
+const MotionLink = motion.create(RouterLink);
+const MotionContentCard = motion.create(ContentCard);
 
 // Entrada das seções e cards na linguagem do riseIn do banner: véu +
 // subida no easing da marca, disparada quando o bloco entra na tela
 // (uma vez só). `delay` escalona os cards; `y` menor para itens pequenos.
-const easeBrand = [0.22, 1, 0.36, 1]
+const easeBrand = [0.22, 1, 0.36, 1];
 function rise(delay = 0, y = 24) {
   return {
     initial: { opacity: 0, y },
     whileInView: { opacity: 1, y: 0 },
     inViewOptions: { once: true },
     transition: { duration: 0.7, ease: easeBrand, delay },
-  }
+  };
 }
 
-const categories = ref<Category[]>([])
-const musicals = ref<Musical[]>([])
-const latest = ref<CatalogItem[]>([])
-const loading = ref(true)
+const categories = ref<Category[]>([]);
+const musicals = ref<Musical[]>([]);
+const latest = ref<CatalogItem[]>([]);
+const loading = ref(true);
 
 onMounted(async () => {
   try {
-    const [cats, items] = await Promise.all([catalogApi.categories(), catalogApi.list({ perPage: 8 })])
-    categories.value = cats.categories
-    musicals.value = cats.musicals
-    latest.value = items.items
+    const [cats, items] = await Promise.all([
+      catalogApi.categories(),
+      catalogApi.list({ perPage: 8 }),
+    ]);
+    categories.value = cats.categories;
+    musicals.value = cats.musicals;
+    latest.value = items.items;
   } catch {
     // Home pública: falha de rede só deixa as seções vazias.
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <template>
@@ -59,9 +62,11 @@ onMounted(async () => {
 
       <h1 class="banner-title">Onde toda música encontra sua <em>voz</em></h1>
 
+      <!-- Foco atual: venda das obras do Lucas (a vitrine de vários artistas
+           volta depois — ver PROGRESS.md). -->
       <p class="banner-sub">
-        O Cantata é um marketplace de partituras que conecta compositores, maestros e músicos —
-        um lugar para publicar, descobrir e adquirir música escrita.
+        Repertório pronto para o seu coro, orquestra ou sala de aula: escolha suas obras e baixe na
+        hora.
       </p>
 
       <RouterLink to="/biblioteca" class="banner-cta">Explorar a biblioteca</RouterLink>
@@ -71,6 +76,12 @@ onMounted(async () => {
          os cards escalonam (delay por índice). reduced-motion="user"
          respeita prefers-reduced-motion (mantém só o véu de opacidade). -->
     <MotionConfig reduced-motion="user">
+      <!-- Destaque do sócio (2026-07-20), logo abaixo do banner: substitui
+           a vitrine de vários artistas enquanto ela fica escondida. -->
+      <motion.section class="section" v-bind="rise()">
+        <PartnerSpotlight />
+      </motion.section>
+
       <!-- Menu de categorias — inclui "Musicais" (2026-07-22) como se
            fosse categoria (mesmo desenho, ícone de máscara na tinta
            dourada da marca), levando à Biblioteca na aba Musicais. -->
@@ -98,12 +109,6 @@ onMounted(async () => {
             <span>Musicais</span>
           </MotionLink>
         </div>
-      </motion.section>
-
-      <!-- Destaque do sócio (2026-07-20): substitui a vitrine de vários
-           artistas enquanto ela fica escondida — ver PROGRESS.md. -->
-      <motion.section class="section" v-bind="rise()">
-        <PartnerSpotlight />
       </motion.section>
 
       <!-- Últimos lançamentos -->
@@ -244,7 +249,9 @@ onMounted(async () => {
   font-family: $font-display;
   font-size: 1.1rem;
   background: rgb(var(--bg-rgb));
-  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
+  transition:
+    color 0.5s $ease-brand,
+    background-color 0.5s $ease-brand;
   @include hover-light;
 
   @each $slug, $hue in $category-hues {
