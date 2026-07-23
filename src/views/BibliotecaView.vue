@@ -57,12 +57,15 @@ const selectedSubs = ref<number[]>([])
 // dos chips (painel blocado, mesmo padrão do menu do usuário no header).
 // Vazio = padrão do backend (mais recentes). Espelhada na URL (?ordem=).
 type Order = '' | 'titulo-az' | 'titulo-za' | 'recentes' | 'preco-desc' | 'preco-asc'
+// Rótulos CURTOS de propósito: o botão reserva a largura do maior rótulo
+// (largura fixa), então nomes longos empurrariam a linha (o "Ordenar por…"
+// cairia para uma 2ª linha). Curtos mantêm tudo numa linha só.
 const ORDER_OPTIONS: { value: Order; label: string }[] = [
   { value: 'titulo-az', label: 'A–Z' },
   { value: 'titulo-za', label: 'Z–A' },
-  { value: 'recentes', label: 'Data (mais recentes)' },
-  { value: 'preco-desc', label: 'Preço: maior → menor' },
-  { value: 'preco-asc', label: 'Preço: menor → maior' },
+  { value: 'recentes', label: 'Recentes' },
+  { value: 'preco-desc', label: 'Maior preço' },
+  { value: 'preco-asc', label: 'Menor preço' },
 ]
 const order = ref<Order>(
   ORDER_OPTIONS.some((o) => o.value === route.query.ordem)
@@ -76,6 +79,11 @@ const orderLabel = computed(
   () => ORDER_OPTIONS.find((o) => o.value === order.value)?.label ?? 'Ordenar por…',
 )
 
+// Largura FIXA dos dropdowns: reserva sempre o espaço do MAIOR rótulo
+// possível (placeholder + todas as opções), renderizado invisível empilhado
+// — trocar a seleção não muda a largura do botão nem empurra os vizinhos.
+const orderLabels = computed(() => ['Ordenar por…', ...ORDER_OPTIONS.map((o) => o.label)])
+
 function pickOrder(value: Order) {
   order.value = value
   orderOpen.value = false
@@ -85,39 +93,45 @@ function pickOrder(value: Order) {
 // PROGRESS.md: item que re-renderiza no clique falha o contains no click)
 // e em Escape.
 function onDocPointerDown(e: PointerEvent) {
-  if (orderOpen.value && !orderRef.value?.contains(e.target as Node)) orderOpen.value = false
+  const t = e.target as Node
+  if (orderOpen.value && !orderRef.value?.contains(t)) orderOpen.value = false
+  if (temaOpen.value && !temaRef.value?.contains(t)) temaOpen.value = false
 }
 function onDocKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') orderOpen.value = false
+  if (e.key === 'Escape') {
+    orderOpen.value = false
+    temaOpen.value = false
+  }
 }
 
-// Musicais (2026-07-22): classificação ACIMA das categorias — aba
-// Todos × Conteúdo padrão × Musicais; dentro de Musicais, filtro pela
-// data especial (Natal, Dia das Mães, …). Ambos sincronizados na URL
-// (?tipo= / ?musical=) como o filtro de categoria.
+// Tema (2026-07-23): antes "musical" era um tipo (padrão × musical); virou
+// um TEMA opcional da obra (Natal, Páscoa, …). Aqui é um DROPDOWN
+// personalizado (mesmo estilo do "Ordenar por…"), independente das
+// categorias; espelhado na URL (?tema=<id>). O dado mantém o nome interno
+// "musical" (id do tema).
 const musicals = ref<Musical[]>([])
-type Tipo = '' | 'padrao' | 'musical'
-const selectedTipo = ref<Tipo>(
-  route.query.musical
-    ? 'musical'
-    : ['padrao', 'musical'].includes(String(route.query.tipo))
-      ? (String(route.query.tipo) as Tipo)
-      : '',
-)
 const selectedMusical = ref<number | null>(
-  Number.isInteger(Number(route.query.musical)) && Number(route.query.musical) > 0
-    ? Number(route.query.musical)
+  Number.isInteger(Number(route.query.tema)) && Number(route.query.tema) > 0
+    ? Number(route.query.tema)
     : null,
 )
+const temaOpen = ref(false)
+const temaRef = ref<HTMLElement | null>(null)
+const temaLabel = computed(
+  () => musicals.value.find((m) => m.id === selectedMusical.value)?.name ?? 'Tema…',
+)
+const temaLabels = computed(() => ['Tema…', ...musicals.value.map((m) => m.name)])
 
-/** Espelha os filtros compartilháveis (categorias/tipo/musical) na URL. */
+function pickTema(id: number | null) {
+  selectedMusical.value = id
+  temaOpen.value = false
+}
+
+/** Espelha os filtros compartilháveis (categorias/tema/ordem) na URL. */
 function syncQuery() {
   const query: Record<string, string> = {}
   if (selectedCategories.value.length) query.categoria = selectedCategories.value.join(',')
-  if (selectedTipo.value) query.tipo = selectedTipo.value
-  if (selectedTipo.value === 'musical' && selectedMusical.value) {
-    query.musical = String(selectedMusical.value)
-  }
+  if (selectedMusical.value) query.tema = String(selectedMusical.value)
   if (order.value) query.ordem = order.value
   router.replace({ query })
 }
@@ -129,26 +143,13 @@ function toggleCategory(slug: string) {
   syncQuery()
 }
 
-function toggleMusical() {
-  selectedTipo.value = selectedTipo.value === 'musical' ? '' : 'musical'
-  if (selectedTipo.value !== 'musical') selectedMusical.value = null
-  syncQuery()
-}
-
-/** "Todos": limpa categorias e musical de uma vez. */
+/** "Todos": limpa a seleção de categorias (tema/ordem são dropdowns próprios). */
 function clearFilters() {
   selectedCategories.value = []
-  selectedTipo.value = ''
-  selectedMusical.value = null
   syncQuery()
 }
 
-const nothingSelected = computed(() => !selectedCategories.value.length && !selectedTipo.value)
-
-function selectMusical(id: number) {
-  selectedMusical.value = selectedMusical.value === id ? null : id
-  syncQuery()
-}
+const nothingSelected = computed(() => !selectedCategories.value.length)
 
 const SUB_TYPE_LABELS: Record<SubcategoryType, string> = {
   instrumento: 'Instrumento',
@@ -175,8 +176,7 @@ async function fetchItems() {
       category: selectedCategories.value.join(',') || undefined,
       subcategories: selectedSubs.value,
       q: q.value || undefined,
-      tipo: selectedTipo.value || undefined,
-      musical: selectedTipo.value === 'musical' ? selectedMusical.value ?? undefined : undefined,
+      musical: selectedMusical.value ?? undefined,
       order: order.value || undefined,
     })
     items.value = res.items
@@ -196,7 +196,7 @@ function toggleSub(id: number) {
 }
 
 // Filtros/busca voltam à página 1 e recarregam.
-watch([selectedCategories, selectedSubs, q, selectedTipo, selectedMusical, order], () => {
+watch([selectedCategories, selectedSubs, q, selectedMusical, order], () => {
   page.value = 1
   syncQuery()
   fetchItems()
@@ -257,14 +257,66 @@ onBeforeUnmount(() => {
             <CategoryIcon class="chip-icon" :slug="cat.slug" :size="16" />
             {{ cat.name }}
           </button>
-          <button
-            class="chip musicais"
-            :class="{ active: selectedTipo === 'musical' }"
-            @click="toggleMusical"
-          >
-            <CategoryIcon class="chip-icon" slug="musicais" :size="16" />
-            Musicais
-          </button>
+          <!-- Tema (2026-07-23): dropdown no lugar do antigo chip "Musicais"
+               (reaproveita o estilo .order-* — dropdown blocado idêntico). -->
+          <div v-if="musicals.length" ref="temaRef" class="order">
+            <button
+              type="button"
+              class="order-btn"
+              :class="{ active: selectedMusical !== null }"
+              aria-haspopup="listbox"
+              :aria-expanded="temaOpen"
+              @click="temaOpen = !temaOpen"
+            >
+              <span class="dd-label">
+                <span v-for="l in temaLabels" :key="l" class="dd-ghost" aria-hidden="true">{{ l }}</span>
+                <span class="dd-current">{{ temaLabel }}</span>
+              </span>
+              <svg
+                class="order-arrow"
+                :class="{ open: temaOpen }"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <Transition name="drop">
+              <ul v-if="temaOpen" class="order-menu" role="listbox" aria-label="Tema">
+                <li>
+                  <button
+                    type="button"
+                    role="option"
+                    class="order-item"
+                    :class="{ selected: selectedMusical === null }"
+                    :aria-selected="selectedMusical === null"
+                    @click="pickTema(null)"
+                  >
+                    Todos os temas
+                  </button>
+                </li>
+                <li v-for="m in musicals" :key="m.id">
+                  <button
+                    type="button"
+                    role="option"
+                    class="order-item"
+                    :class="{ selected: selectedMusical === m.id }"
+                    :aria-selected="selectedMusical === m.id"
+                    @click="pickTema(m.id)"
+                  >
+                    {{ m.name }}
+                  </button>
+                </li>
+              </ul>
+            </Transition>
+          </div>
           <!-- Ordenação: dropdown personalizado blocado (padrão do menu do
                usuário no header: painel colado, fecha fora/Escape) -->
           <div ref="orderRef" class="order">
@@ -276,7 +328,10 @@ onBeforeUnmount(() => {
               :aria-expanded="orderOpen"
               @click="orderOpen = !orderOpen"
             >
-              {{ orderLabel }}
+              <span class="dd-label">
+                <span v-for="l in orderLabels" :key="l" class="dd-ghost" aria-hidden="true">{{ l }}</span>
+                <span class="dd-current">{{ orderLabel }}</span>
+              </span>
               <svg
                 class="order-arrow"
                 :class="{ open: orderOpen }"
@@ -311,20 +366,6 @@ onBeforeUnmount(() => {
             </Transition>
           </div>
         </div>
-      </motion.div>
-
-      <!-- Dentro de Musicais: filtro pela data especial -->
-      <motion.div v-if="selectedTipo === 'musical' && musicals.length" class="sub-group" v-bind="rise(0.13)">
-        <span class="sub-label">Musical:</span>
-        <button
-          v-for="m in musicals"
-          :key="m.id"
-          class="chip small"
-          :class="{ active: selectedMusical === m.id }"
-          @click="selectMusical(m.id)"
-        >
-          {{ m.name }}
-        </button>
       </motion.div>
 
       <!-- Filtros por subcategoria -->
@@ -480,6 +521,25 @@ onBeforeUnmount(() => {
     color: $gold-text;
     background: $fill-active-solid;
   }
+}
+
+// Rótulo do dropdown com LARGURA FIXA: os "fantasmas" (todas as opções +
+// placeholder, invisíveis) e o rótulo atual ocupam a MESMA célula de grid,
+// então a célula fica sempre com a largura do maior — trocar a seleção não
+// altera a largura do botão (nem empurra os vizinhos do grupo).
+.dd-label {
+  display: grid;
+  justify-items: center;
+}
+
+.dd-ghost,
+.dd-current {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.dd-ghost {
+  visibility: hidden;
 }
 
 // Seta da família dos ícones do sistema; gira com o painel aberto.

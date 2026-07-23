@@ -89,7 +89,9 @@ const photo: string | null = "/abdo.webp";
 }
 
 .bio {
-  color: rgba(var(--fg-rgb), 0.75);
+  font-size: 17px;
+  line-height: 1.7;
+  color: rgba(var(--fg-rgb), 0.65);
   white-space: pre-line;
   max-width: 480px;
 }

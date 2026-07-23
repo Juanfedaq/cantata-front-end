@@ -37,16 +37,14 @@ const editingId = computed(() => {
 const categories = ref<Category[]>([])
 const subcategories = ref<Subcategory[]>([])
 
-// Musicais (2026-07-22): classificação ACIMA das categorias. Antes de tudo,
-// o artista escolhe se a obra é conteúdo PADRÃO ou um MUSICAL (data especial
-// — Natal, Dia das Mães, …); se musical, seleciona qual. O pacote por dentro
-// (categorias/arquivos/preço) continua idêntico.
+// Tema (2026-07-23): a obra pode ganhar um TEMA opcional (Natal, Páscoa, …)
+// — antes era um "tipo" (padrão × musical), agora é só uma etiqueta a mais,
+// não obrigatória. Vazio = sem tema. O dado mantém o nome interno "musical".
 const musicals = ref<Musical[]>([])
-const contentKind = ref<'padrao' | 'musical'>('padrao')
 const musicalId = ref<number | null>(null)
 
-// Em edição, o musical salvo pode ter sido desativado pelo admin depois —
-// ele não vem em GET /categories, mas precisa aparecer no select (o backend
+// Em edição, o tema salvo pode ter sido desativado pelo admin depois — ele
+// não vem em GET /categories, mas precisa aparecer no select (o backend
 // permite MANTER, só não escolher um inativo novo).
 const musicalOptions = computed(() => {
   if (musicalId.value && !musicals.value.some((m) => m.id === musicalId.value) && editingMusical.value) {
@@ -252,7 +250,6 @@ onMounted(async () => {
         priceReais.value = (current.priceCents / 100).toFixed(2)
         existingCoverPath.value = current.coverPath
         if (current.musical) {
-          contentKind.value = 'musical'
           musicalId.value = current.musical.id
           editingMusical.value = current.musical
         }
@@ -390,9 +387,6 @@ async function submit(asDraft: boolean) {
 
   const priceCents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
   if (!title.value.trim()) return (error.value = 'Informe o título.')
-  if (contentKind.value === 'musical' && !musicalId.value) {
-    return (error.value = 'Selecione qual musical (data especial) esta obra pertence.')
-  }
 
   // Validação por categoria: nova precisa de arquivos + prévia; mantida
   // não pode terminar sem arquivos.
@@ -421,8 +415,8 @@ async function submit(asDraft: boolean) {
   form.set('description', description.value.trim())
   form.set('priceCents', String(priceCents))
   form.set('subcategoryIds', JSON.stringify(selectedSubs.value))
-  // Vazio = conteúdo padrão (na edição, limpa um musical antes escolhido).
-  form.set('musicalId', contentKind.value === 'musical' && musicalId.value ? String(musicalId.value) : '')
+  // Vazio = sem tema (na edição, limpa um tema antes escolhido).
+  form.set('musicalId', musicalId.value ? String(musicalId.value) : '')
   if (asDraft) form.set('draft', '1')
 
   const removeSlugs: string[] = []
@@ -494,33 +488,11 @@ async function submit(asDraft: boolean) {
     </div>
 
     <form class="form" @submit.prevent="submit(false)">
-      <!-- Tipo de conteúdo (acima de tudo): padrão × musical (data especial) -->
-      <div class="field">
-        <span>Tipo de conteúdo *</span>
-        <div class="chips">
-          <button
-            type="button"
-            class="chip"
-            :class="{ active: contentKind === 'padrao' }"
-            @click="contentKind = 'padrao'"
-          >
-            Conteúdo padrão
-          </button>
-          <button
-            type="button"
-            class="chip"
-            :class="{ active: contentKind === 'musical' }"
-            @click="contentKind = 'musical'"
-          >
-            Musical
-          </button>
-        </div>
-      </div>
-
-      <label v-if="contentKind === 'musical'" class="field narrow">
-        <span>Qual musical? * — cada um corresponde a uma data especial do ano</span>
+      <!-- Tema (opcional): data especial do ano a que a obra se liga -->
+      <label v-if="musicals.length" class="field narrow">
+        <span>Tema (opcional) — data especial do ano, se a obra se encaixar</span>
         <select v-model="musicalId">
-          <option :value="null" disabled>Selecione…</option>
+          <option :value="null">Nenhum</option>
           <option v-for="m in musicalOptions" :key="m.id" :value="m.id">{{ m.name }}</option>
         </select>
       </label>

@@ -115,6 +115,8 @@ function logout() {
         <nav v-if="mobileOpen" class="mobile-panel">
           <RouterLink to="/inicio" @click="closeMobile">Início</RouterLink>
           <RouterLink to="/biblioteca" @click="closeMobile">Biblioteca</RouterLink>
+          <!-- Minhas Compras no menu principal (só logado), fora do bloco da conta. -->
+          <RouterLink v-if="auth.isAuthenticated" to="/compras" @click="closeMobile">Minhas Compras</RouterLink>
           <!-- Vitrine de vários artistas escondida (2026-07-20, ver
                PROGRESS.md) — o link some junto com a rota comentada no router.
           <RouterLink to="/artistas" @click="closeMobile">Artistas</RouterLink>
@@ -132,7 +134,6 @@ function logout() {
               <span>{{ auth.user?.name || auth.user?.email }}</span>
             </p>
             <RouterLink to="/perfil" @click="closeMobile">Meu Perfil</RouterLink>
-            <RouterLink to="/compras" @click="closeMobile">Minhas Compras</RouterLink>
             <RouterLink v-if="auth.isArtist" to="/artista/conteudos" @click="closeMobile">
               Meus Conteúdos
             </RouterLink>
@@ -170,6 +171,8 @@ function logout() {
       <nav class="menu">
         <RouterLink to="/inicio">Início</RouterLink>
         <RouterLink to="/biblioteca">Biblioteca</RouterLink>
+        <!-- Minhas Compras saiu do dropdown para o menu principal (só logado). -->
+        <RouterLink v-if="auth.isAuthenticated" to="/compras">Minhas Compras</RouterLink>
         <!-- Vitrine de vários artistas escondida (2026-07-20, ver
              PROGRESS.md) — o link some junto com a rota comentada no router.
         <RouterLink to="/artistas">Artistas</RouterLink>
@@ -210,9 +213,6 @@ function logout() {
           <Transition name="drop">
             <div v-if="userMenuOpen" class="dropdown" role="menu">
               <RouterLink to="/perfil" role="menuitem" @click="closeUserMenu">Meu Perfil</RouterLink>
-              <RouterLink to="/compras" role="menuitem" @click="closeUserMenu">
-                Minhas Compras
-              </RouterLink>
               <RouterLink
                 v-if="auth.isArtist"
                 to="/artista/conteudos"
@@ -493,14 +493,17 @@ $line: rgba(var(--fg-rgb), 0.1);
     }
   }
 
+  // "Criar conta": destaque em dourado SÓLIDO da marca com letra BRANCA.
+  // Branco fixo (#fff) — não $color-white, que é ligado ao tema e ficaria
+  // escuro no tema claro; o fundo dourado é o mesmo nos 2 temas.
   .cta {
-    color: $gold-strong;
+    color: #fff;
     font-weight: 600;
-    background: rgba($color-primary, 0.1);
+    background: $color-primary;
 
     &:hover {
-      color: $color-white;
-      background: rgba($color-primary, 0.22);
+      color: #fff;
+      background: color-mix(in srgb, $color-primary 82%, #fff);
     }
   }
 }

@@ -16,7 +16,7 @@ import {
   type SubcategoryType,
 } from '@/services/api'
 
-type Tab = 'moderacao' | 'usuarios' | 'compras' | 'subcategorias' | 'musicais'
+type Tab = 'moderacao' | 'usuarios' | 'compras' | 'subcategorias' | 'temas'
 const tab = ref<Tab>('moderacao')
 const error = ref('')
 
@@ -148,9 +148,10 @@ async function deactivateSub(sub: Subcategory) {
   }
 }
 
-// ---- Musicais (datas especiais — classificação acima das categorias) ----
+// ---- Temas (datas especiais, etiqueta opcional da obra) ----
 // Mesmo padrão das subcategorias: criar + desativar (sem exclusão — obras
-// podem apontar para o musical; desativado some dos formulários/filtros).
+// podem apontar para o tema; desativado some dos formulários/filtros).
+// Endpoints/dados mantêm o nome interno "musical".
 const musicals = ref<Musical[]>([])
 const newMusicalName = ref('')
 
@@ -188,7 +189,7 @@ watch(tab, (t) => {
   if (t === 'moderacao') loadContents()
   else if (t === 'usuarios') loadUsers()
   else if (t === 'compras') loadPurchases()
-  else if (t === 'musicais') loadMusicals()
+  else if (t === 'temas') loadMusicals()
   else loadSubcategories()
 })
 
@@ -206,7 +207,7 @@ onMounted(loadContents)
       <button class="tab" :class="{ active: tab === 'usuarios' }" @click="tab = 'usuarios'">Usuários</button>
       <button class="tab" :class="{ active: tab === 'compras' }" @click="tab = 'compras'">Compras</button>
       <button class="tab" :class="{ active: tab === 'subcategorias' }" @click="tab = 'subcategorias'">Subcategorias</button>
-      <button class="tab" :class="{ active: tab === 'musicais' }" @click="tab = 'musicais'">Musicais</button>
+      <button class="tab" :class="{ active: tab === 'temas' }" @click="tab = 'temas'">Temas</button>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -229,7 +230,7 @@ onMounted(loadContents)
         <li v-for="c in contents" :key="c.id" class="mod-item">
           <div class="mod-head">
             <strong class="mod-title">{{ c.title }}</strong>
-            <span v-if="c.musical" class="pill">🎭 Musical · {{ c.musical.name }}</span>
+            <span v-if="c.musical" class="pill">🎭 Tema · {{ c.musical.name }}</span>
             <span class="muted">{{ c.items.map((i) => i.category.name).join(' · ') }} ·
               {{ formatPrice(c.priceCents) }} · {{ c.artist.name || c.artist.email }}</span>
           </div>
@@ -317,15 +318,15 @@ onMounted(loadContents)
       </div>
     </section>
 
-    <!-- ================= Musicais ================= -->
-    <section v-else-if="tab === 'musicais'">
+    <!-- ================= Temas ================= -->
+    <section v-else-if="tab === 'temas'">
       <p class="muted intro-note">
-        Musicais são a classificação acima das categorias: um para cada data especial do ano
-        (Natal, Dia das Mães…). O artista escolhe um deles ao publicar uma obra do tipo musical.
-        Desativar tira o musical dos formulários e filtros — as obras já vinculadas não mudam.
+        Temas são datas especiais do ano (Natal, Dia das Mães…). Ao publicar, o artista pode
+        marcar a obra com um tema — é opcional. Desativar tira o tema dos formulários e filtros
+        — as obras já marcadas não mudam.
       </p>
       <div class="filter-row">
-        <input v-model="newMusicalName" type="text" placeholder="Nome do musical (ex.: Natal)" @keyup.enter="createMusical" />
+        <input v-model="newMusicalName" type="text" placeholder="Nome do tema (ex.: Natal)" @keyup.enter="createMusical" />
         <button class="ok-btn" @click="createMusical">Adicionar</button>
       </div>
 

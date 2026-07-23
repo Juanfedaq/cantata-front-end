@@ -3,7 +3,7 @@
 | Rota | View | Acesso |
 |---|---|---|
 | `/` | `ComingSoonView.vue` | público — **INTOCÁVEL até o lançamento (spec §9.1)** |
-| `/inicio` | `HomeView.vue` — banner, musicais (datas especiais → biblioteca filtrada), categorias, destaque do sócio, últimos lançamentos | público |
+| `/inicio` | `HomeView.vue` — banner, destaque do sócio, categorias, últimos lançamentos | público |
 | `/biblioteca` | `BibliotecaView.vue` — catálogo, busca, filtros, paginação | público |
 | `/artistas` | `ArtistasView.vue` — vitrine | público |
 | `/artistas/:id` | `ArtistProfileView.vue` — perfil público | público |

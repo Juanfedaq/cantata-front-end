@@ -6,7 +6,7 @@ import AppLayout from "@/components/AppLayout.vue";
 import ContentCard from "@/components/ContentCard.vue";
 import CategoryIcon from "@/components/CategoryIcon.vue";
 import PartnerSpotlight from "@/components/PartnerSpotlight.vue";
-import { catalogApi, type CatalogItem, type Category, type Musical } from "@/services/api";
+import { catalogApi, type CatalogItem, type Category } from "@/services/api";
 import { useThemeStore } from "@/stores/theme";
 
 const theme = useThemeStore();
@@ -30,7 +30,6 @@ function rise(delay = 0, y = 24) {
 }
 
 const categories = ref<Category[]>([]);
-const musicals = ref<Musical[]>([]);
 const latest = ref<CatalogItem[]>([]);
 const loading = ref(true);
 
@@ -41,7 +40,6 @@ onMounted(async () => {
       catalogApi.list({ perPage: 8 }),
     ]);
     categories.value = cats.categories;
-    musicals.value = cats.musicals;
     latest.value = items.items;
   } catch {
     // Home pública: falha de rede só deixa as seções vazias.
@@ -82,9 +80,7 @@ onMounted(async () => {
         <PartnerSpotlight />
       </motion.section>
 
-      <!-- Menu de categorias — inclui "Musicais" (2026-07-22) como se
-           fosse categoria (mesmo desenho, ícone de máscara na tinta
-           dourada da marca), levando à Biblioteca na aba Musicais. -->
+      <!-- Menu de categorias -->
       <motion.section class="section" v-bind="rise()">
         <h2 class="section-title">Categorias</h2>
         <div class="categories">
@@ -98,15 +94,6 @@ onMounted(async () => {
           >
             <CategoryIcon class="category-icon" :slug="cat.slug" :size="28" />
             <span>{{ cat.name }}</span>
-          </MotionLink>
-          <MotionLink
-            v-if="musicals.length"
-            to="/biblioteca?tipo=musical"
-            class="category-card musicais"
-            v-bind="rise(categories.length * 0.06, 18)"
-          >
-            <CategoryIcon class="category-icon" slug="musicais" :size="28" />
-            <span>Musicais</span>
           </MotionLink>
         </div>
       </motion.section>
@@ -173,7 +160,7 @@ onMounted(async () => {
 
   em {
     font-style: italic;
-    color: $color-primary;
+    color: $gold-text;
   }
 }
 

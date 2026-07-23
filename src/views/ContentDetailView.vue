@@ -2,13 +2,16 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
+import CategoryIcon from '@/components/CategoryIcon.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useOwnedStore } from '@/stores/owned'
 import { catalogApi, purchasesApi, fileUrl, formatPrice, type CatalogDetail } from '@/services/api'
 import { usePageSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const owned = useOwnedStore()
 
 const content = ref<CatalogDetail | null>(null)
 
@@ -36,9 +39,34 @@ function previewExt(path: string) {
   return path.split('.').pop()?.toLowerCase() ?? ''
 }
 
+// Autor da obra (não comprou — é dele) × comprador que já ADQUIRIU (tem
+// compra paga; dado da tabela purchases, via a store owned). Quando já
+// adquiriu, some o "Comprar" e entra o link para "Minhas Compras".
 const isOwn = computed(() => !!auth.user && content.value?.artist.id === auth.user.id)
+const isPurchased = computed(() => !!content.value && owned.owns(content.value.id))
+
+// Resumo "Este produto contém": conta os arquivos por categoria e descreve
+// pelo tipo de arquivo (áudio/vídeo) ou pelo nome da categoria (partitura/
+// cifra). Ex.: "2 arquivos de áudio", "1 arquivo de cifra".
+const CATEGORY_FILE_NOUN: Record<string, string> = {
+  partituras: 'partitura',
+  musicas: 'áudio',
+  cifras: 'cifra',
+  coreografias: 'vídeo',
+}
+
+const packageSummary = computed(() =>
+  (content.value?.items ?? [])
+    .map((item) => {
+      const n = item.files.length
+      const noun = CATEGORY_FILE_NOUN[item.category.slug] ?? item.category.name.toLowerCase()
+      return { slug: item.category.slug, text: `${n} ${n === 1 ? 'arquivo' : 'arquivos'} de ${noun}` }
+    })
+    .filter((s) => s.text),
+)
 
 onMounted(async () => {
+  owned.load() // garante que sabemos se o usuário já possui esta obra
   if (route.query.checkout === 'cancelado') {
     buyError.value = 'Pagamento cancelado. Você pode tentar novamente quando quiser.'
   }
@@ -155,6 +183,17 @@ async function buy() {
 
         <p v-if="content.description" class="description">{{ content.description }}</p>
 
+        <!-- Resumo do que o pacote inclui (arquivos por categoria) -->
+        <div v-if="packageSummary.length" class="includes">
+          <h2 class="includes-title">Este produto contém</h2>
+          <ul class="includes-list">
+            <li v-for="line in packageSummary" :key="line.slug">
+              <CategoryIcon class="includes-icon" :class="line.slug" :slug="line.slug" :size="18" />
+              <span>{{ line.text }}</span>
+            </li>
+          </ul>
+        </div>
+
         <div v-if="content.subcategories.length" class="tags">
           <span v-for="sub in content.subcategories" :key="sub.id" class="tag">{{ sub.name }}</span>
         </div>
@@ -162,6 +201,11 @@ async function buy() {
         <div class="buy-box">
           <p class="price">{{ formatPrice(content.priceCents) }}</p>
           <p v-if="isOwn" class="muted">Este conteúdo é seu.</p>
+          <!-- Já adquirido: sem "Comprar" — leva a Minhas Compras p/ baixar -->
+          <template v-else-if="isPurchased">
+            <p class="owned-note">✓ Você já adquiriu este conteúdo.</p>
+            <RouterLink to="/compras" class="buy-btn">Ver em Minhas Compras</RouterLink>
+          </template>
           <template v-else>
             <button class="buy-btn" :disabled="buying || !content.purchasable" @click="buy">
               {{ buying ? 'Redirecionando…' : 'Comprar' }}
@@ -183,7 +227,9 @@ async function buy() {
             </button>
           </div>
 
-          <p class="muted small">Após a compra, o download fica disponível para sempre em "Minhas Compras".</p>
+          <p v-if="!isPurchased && !isOwn" class="muted small">
+            Após a compra, o download fica disponível para sempre em "Minhas Compras".
+          </p>
         </div>
       </div>
     </div>
@@ -262,6 +308,45 @@ async function buy() {
   white-space: pre-line;
 }
 
+// "Este produto contém": título de rótulo + lista com o ícone de cada
+// categoria (na tinta dela, como nos cards) + a contagem de arquivos.
+.includes {
+  margin-top: 1.5rem;
+}
+
+.includes-title {
+  @include label-type;
+  font-size: 0.72rem;
+  color: $text-secondary;
+  margin-bottom: 0.6rem;
+}
+
+.includes-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: rgba(var(--fg-rgb), 0.85);
+  }
+}
+
+// Ícone na tinta da categoria (mesma disciplina dos cards, §5.1).
+.includes-icon {
+  flex-shrink: 0;
+  color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
+
+  @each $slug, $hue in $category-hues {
+    &.#{$slug} {
+      --cat-hue: #{$hue};
+    }
+  }
+}
+
 // Tags como grupo blocado colado (guia §3): sem pílulas, bordas sobrepostas.
 .tags {
   margin-top: 1.25rem;
@@ -290,6 +375,13 @@ async function buy() {
   font-size: 1.6rem;
   font-weight: 700;
   margin-bottom: 0.75rem;
+}
+
+// Aviso "já adquirido" acima do botão de Minhas Compras (cor de sucesso).
+.owned-note {
+  margin-bottom: 0.75rem;
+  color: $color-success;
+  font-weight: 600;
 }
 
 .buy-btn {

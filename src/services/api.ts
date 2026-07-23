@@ -267,9 +267,8 @@ export const catalogApi = {
     category?: string
     subcategories?: number[]
     q?: string
-    // Classificação acima das categorias: 'padrao' | 'musical';
-    // `musical` (id) restringe a uma data especial específica.
-    tipo?: 'padrao' | 'musical'
+    // `musical` (id) = TEMA opcional da obra (Natal, Páscoa, …) — filtra
+    // pela etiqueta escolhida (campo/coluna mantêm o nome interno "musical").
     musical?: number
     // Ordenação (whitelist do backend); ausente = mais recentes.
     order?: 'recentes' | 'titulo-az' | 'titulo-za' | 'preco-desc' | 'preco-asc'
@@ -280,7 +279,6 @@ export const catalogApi = {
     if (params.category) query.set('category', params.category)
     if (params.subcategories?.length) query.set('subcategories', params.subcategories.join(','))
     if (params.q) query.set('q', params.q)
-    if (params.tipo) query.set('tipo', params.tipo)
     if (params.musical) query.set('musical', String(params.musical))
     if (params.order) query.set('order', params.order)
     const qs = query.toString()
