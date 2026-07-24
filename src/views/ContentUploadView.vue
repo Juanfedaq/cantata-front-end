@@ -175,8 +175,10 @@ const subsByType = computed(() => {
   return groups
 })
 
-/** Arquivos que a categoria terá após o envio (existentes mantidos + novos). */
-function finalFileCount(a: CatArea) {
+/** Arquivos que a categoria terá após o envio (existentes mantidos + novos).
+ *  Tolera `undefined` (índice pode não estar pronto no template) → 0. */
+function finalFileCount(a: CatArea | undefined) {
+  if (!a) return 0
   return a.existingFiles.filter((f) => !f.remove).length + a.newFiles.length
 }
 
@@ -666,7 +668,7 @@ async function submit(asDraft: boolean) {
               <span class="cat-name">{{ cat.name }}</span>
               <span v-if="areas[cat.slug]?.remove" class="cat-state removed">será removida</span>
               <span v-else-if="isIncluded(cat.slug)" class="cat-state">no pacote</span>
-              <span v-if="areas[cat.slug] && finalFileCount(areas[cat.slug])" class="cat-count">
+              <span v-if="finalFileCount(areas[cat.slug])" class="cat-count">
                 {{ finalFileCount(areas[cat.slug]) }} arq.
               </span>
               <svg
