@@ -15,7 +15,7 @@
 | `/perfil` | `ProfileView.vue` — foto de perfil (trocar/remover) + biografia; para não-artista mostra o convite "Torne-se um artista" (upgrade) | logado |
 | `/artista/conteudos` | `ArtistContentsView.vue` — status, motivo de reprovação, Stripe | artista |
 | `/contrato` | `ContratoView.vue` — Termos do Artista (markdown + "Li e aceito"; obrigatório p/ publicar) | artista |
-| `/artista/publicar` | `ContentUploadView.vue` — upload/edição (`?editar=<id>`) + simulador de repasse + bloqueio sem contrato | artista |
+| `/artista/publicar` | `ContentUploadView.vue` — ASSISTENTE em 4 passos (1 Detalhes → 2 Conteúdo → 3 Capa e preço → 4 Revisão), com stepper de progresso; upload/edição (`?editar=<id>`) + simulador de repasse + bloqueio sem contrato/Stripe no passo 4 | artista |
 | `/artista/stripe` | `ArtistStripeView.vue` — retorno do onboarding | artista |
 | `/admin` | `AdminView.vue` — moderação, usuários, compras, subcategorias | admin |
 

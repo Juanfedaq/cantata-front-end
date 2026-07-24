@@ -11,6 +11,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import FileGlyph from '@/components/FileGlyph.vue'
+import PublishPreview from '@/components/PublishPreview.vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   ApiError,
   artistsApi,
@@ -19,6 +21,7 @@ import {
   fileUrl,
   formatPrice,
   type Category,
+  type CategoryRef,
   type FeeSimulation,
   type Musical,
   type Subcategory,
@@ -27,6 +30,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 // ?editar=<id> → edição/reenvio de uma obra existente (reabre a revisão).
 const editingId = computed(() => {
@@ -99,6 +103,13 @@ function blankArea(): CatArea {
     existing: false,
     remove: false,
   }
+}
+
+// Acordeão (passo Conteúdo): cada categoria abre/fecha. Aberto por padrão
+// no primeiro (novo envio) e nos que já têm conteúdo (edição).
+const expanded = ref<Record<string, boolean>>({})
+function toggleExpand(slug: string) {
+  expanded.value[slug] = !expanded.value[slug]
 }
 
 // Regras de tipo POR categoria (espelham o backend — upload.js).
@@ -212,6 +223,94 @@ watch(priceCentsInput, (cents) => {
   }, 350)
 })
 
+// ---- Assistente em 4 passos --------------------------------------------------
+// (1) Detalhes · (2) Conteúdo · (3) Capa e preço · (4) Revisão e envio.
+// Os passos são só VISTAS da mesma form (v-show, não v-if) — assim os
+// arquivos/prévias já escolhidos não se perdem ao navegar entre eles.
+const TOTAL_STEPS = 4
+const STEPS = [
+  { n: 1, label: 'Detalhes' },
+  { n: 2, label: 'Conteúdo' },
+  { n: 3, label: 'Capa e preço' },
+  { n: 4, label: 'Revisão' },
+]
+const step = ref(1)
+
+/** Validação do CONTEÚDO (passo 2): categorias e arquivos. Erro ou null.
+ *  Ao achar problema numa categoria, ABRE o acordeão dela (senão o artista
+ *  não veria onde corrigir se estiver colapsada). */
+function validateContent(): string | null {
+  for (const cat of categories.value) {
+    const a = areas.value[cat.slug]
+    if (!a || a.remove) continue
+    if (!a.existing) {
+      if (a.newFiles.length && !a.preview) {
+        expanded.value[cat.slug] = true
+        return `A categoria "${cat.name}" precisa da prévia pública (o trecho que o visitante vê antes de comprar).`
+      }
+      if (!a.newFiles.length && a.preview) {
+        expanded.value[cat.slug] = true
+        return `A categoria "${cat.name}" precisa de ao menos um arquivo para o comprador.`
+      }
+    } else if (finalFileCount(a) === 0) {
+      expanded.value[cat.slug] = true
+      return `A categoria "${cat.name}" ficaria sem arquivos — remova a categoria inteira ou mantenha ao menos um.`
+    }
+  }
+  if (!includedCount.value) {
+    return 'Inclua ao menos uma categoria no pacote (arquivos + prévia).'
+  }
+  return null
+}
+
+/** Validação de um passo específico (erro ou null). */
+function validateStep(n: number): string | null {
+  if (n === 1 && !title.value.trim()) return 'Informe o título.'
+  if (n === 2) return validateContent()
+  if (n === 3 && priceCentsInput.value === null) return 'Preço mínimo de R$ 1,00.'
+  return null
+}
+
+function next() {
+  const err = validateStep(step.value)
+  if (err) return (error.value = err)
+  error.value = ''
+  if (step.value < TOTAL_STEPS) step.value++
+}
+function back() {
+  error.value = ''
+  if (step.value > 1) step.value--
+}
+/** Clicar no stepper só volta para passos já vistos (avançar é pelo botão). */
+function goToStep(n: number) {
+  if (n < step.value) {
+    error.value = ''
+    step.value = n
+  }
+}
+/** Enter/submit da form: avança nos passos, envia no último. */
+function handlePrimary() {
+  if (step.value < TOTAL_STEPS) next()
+  else submit(false)
+}
+
+/** Resumo das categorias incluídas (passo de revisão). */
+const includedSummary = computed(() =>
+  categories.value
+    .filter((c) => isIncluded(c.slug))
+    .map((c) => ({ name: c.name, count: finalFileCount(areas.value[c.slug]) })),
+)
+
+// ---- Dados do preview ao vivo (PublishPreview, à direita) --------------------
+const previewCover = computed(() => coverUrl.value || fileUrl(existingCoverPath.value) || null)
+const previewCategories = computed<CategoryRef[]>(() =>
+  categories.value.filter((c) => isIncluded(c.slug)).map((c) => ({ slug: c.slug, name: c.name })),
+)
+const previewMusicalName = computed(
+  () => (musicalId.value && musicalOptions.value.find((m) => m.id === musicalId.value)?.name) || null,
+)
+const artistName = computed(() => auth.user?.name || auth.user?.email || null)
+
 onMounted(async () => {
   // Contrato vigente aceito? Sem aceite, mostra o bloqueio com link.
   try {
@@ -235,6 +334,8 @@ onMounted(async () => {
     for (const cat of cats.categories) {
       areas.value[cat.slug] = blankArea()
     }
+    // Abre o primeiro acordeão por padrão (há sempre ≥1 a preencher).
+    if (cats.categories[0]) expanded.value[cats.categories[0].slug] = true
   } catch {
     error.value = 'Erro ao carregar as categorias. Recarregue a página.'
   }
@@ -263,6 +364,7 @@ onMounted(async () => {
             fileName: f.fileName,
             remove: false,
           }))
+          expanded.value[item.category.slug] = true // abre os que já têm conteúdo
         }
       }
     } catch {
@@ -385,30 +487,28 @@ async function submit(asDraft: boolean) {
       'Complete seu cadastro de pagamentos (Stripe) para enviar obras à revisão. Enquanto isso, salve como rascunho.')
   }
 
-  const priceCents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
-  if (!title.value.trim()) return (error.value = 'Informe o título.')
-
-  // Validação por categoria: nova precisa de arquivos + prévia; mantida
-  // não pode terminar sem arquivos.
-  for (const cat of categories.value) {
-    const a = areas.value[cat.slug]
-    if (!a || a.remove) continue
-    if (!a.existing) {
-      if (a.newFiles.length && !a.preview) {
-        return (error.value = `A categoria "${cat.name}" precisa da prévia pública (o trecho que o visitante vê antes de comprar).`)
-      }
-      if (!a.newFiles.length && a.preview) {
-        return (error.value = `A categoria "${cat.name}" precisa de ao menos um arquivo para o comprador.`)
-      }
-    } else if (finalFileCount(a) === 0) {
-      return (error.value = `A categoria "${cat.name}" ficaria sem arquivos — remova a categoria inteira ou mantenha ao menos um.`)
+  // Título e conteúdo são obrigatórios em ambos os casos.
+  const e1 = validateStep(1)
+  if (e1) {
+    step.value = 1
+    return (error.value = e1)
+  }
+  const e2 = validateContent()
+  if (e2) {
+    step.value = 2
+    return (error.value = e2)
+  }
+  // Preço só é obrigatório para ENVIAR à revisão; rascunho pode ficar sem
+  // (fica 0 e o artista define ao reenviar). Assim dá para salvar já no
+  // passo 2, sem passar pelo preço.
+  if (!asDraft) {
+    const e3 = validateStep(3)
+    if (e3) {
+      step.value = 3
+      return (error.value = e3)
     }
   }
-  if (!includedCount.value) {
-    return (error.value = 'Inclua ao menos uma categoria no pacote (arquivos + prévia).')
-  }
-  if (!Number.isInteger(priceCents) || priceCents < 100)
-    return (error.value = 'Preço mínimo de R$ 1,00.')
+  const priceCents = priceCentsInput.value ?? 0
 
   const form = new FormData()
   form.set('title', title.value.trim())
@@ -467,7 +567,8 @@ async function submit(asDraft: boolean) {
       publicada.
     </p>
 
-    <!-- Bloqueio de publicação sem o aceite do contrato vigente -->
+    <!-- Bloqueios ACIMA de tudo (visíveis desde o início, não só no fim):
+         sem contrato aceito não publica nem salva; sem Stripe, só rascunho. -->
     <div v-if="contractOk === false" class="contract-warn">
       <p>
         📜 Antes de publicar, você precisa ler e aceitar os
@@ -477,8 +578,6 @@ async function submit(asDraft: boolean) {
         Ler e aceitar os termos
       </RouterLink>
     </div>
-
-    <!-- Sem onboarding do Stripe: só rascunho (a revisão fica bloqueada) -->
     <div v-if="stripeOk === false" class="contract-warn">
       <p>
         💳 Sem seu <strong>cadastro de pagamentos (Stripe)</strong>, a obra só pode ser salva
@@ -487,7 +586,28 @@ async function submit(asDraft: boolean) {
       <RouterLink to="/artista/stripe" class="contract-btn">Completar cadastro</RouterLink>
     </div>
 
-    <form class="form" @submit.prevent="submit(false)">
+    <div class="publish-layout">
+      <div class="publish-main">
+    <!-- Progresso do assistente (4 passos): voltar clicando num já visto -->
+    <ol class="stepper">
+      <li
+        v-for="s in STEPS"
+        :key="s.n"
+        class="stepper-item"
+        :class="{ current: step === s.n, done: step > s.n }"
+      >
+        <button type="button" class="stepper-btn" :disabled="s.n >= step" @click="goToStep(s.n)">
+          <span class="stepper-num">{{ step > s.n ? '✓' : s.n }}</span>
+          <span class="stepper-label">{{ s.label }}</span>
+        </button>
+      </li>
+    </ol>
+
+    <!-- novalidate: a validação é NOSSA (por passo). Sem isso, o `required`
+         de um campo escondido (outro passo) bloquearia o submit sem foco. -->
+    <form class="form" novalidate @submit.prevent="handlePrimary">
+      <!-- ============ PASSO 1: Detalhes ============ -->
+      <div v-show="step === 1" class="step">
       <!-- Tema (opcional): data especial do ano a que a obra se liga -->
       <label v-if="musicals.length" class="field narrow">
         <span>Tema (opcional) — data especial do ano, se a obra se encaixar</span>
@@ -522,23 +642,55 @@ async function submit(asDraft: boolean) {
           </button>
         </div>
       </div>
+      </div>
 
+      <!-- ============ PASSO 2: Conteúdo ============ -->
+      <div v-show="step === 2" class="step">
       <!-- Áreas por categoria: preencher arquivo + prévia inclui no pacote -->
       <div class="field">
         <span>O que este pacote inclui * <em class="count">({{ includedCount }} de {{ categories.length }} categorias)</em></span>
         <div class="cat-areas">
-          <fieldset
+          <div
             v-for="cat in categories"
             :key="cat.id"
             class="cat-area"
-            :class="{ included: isIncluded(cat.slug), removed: areas[cat.slug]?.remove }"
+            :class="{ included: isIncluded(cat.slug), removed: areas[cat.slug]?.remove, open: expanded[cat.slug] }"
           >
-            <legend class="cat-head">
+            <!-- Cabeçalho do acordeão: clica para abrir/fechar a categoria -->
+            <button
+              type="button"
+              class="cat-head"
+              :aria-expanded="!!expanded[cat.slug]"
+              @click="toggleExpand(cat.slug)"
+            >
               <span class="cat-name">{{ cat.name }}</span>
               <span v-if="areas[cat.slug]?.remove" class="cat-state removed">será removida</span>
               <span v-else-if="isIncluded(cat.slug)" class="cat-state">no pacote</span>
-            </legend>
+              <span v-if="areas[cat.slug] && finalFileCount(areas[cat.slug])" class="cat-count">
+                {{ finalFileCount(areas[cat.slug]) }} arq.
+              </span>
+              <svg
+                class="cat-chevron"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
 
+            <!-- Corpo do acordeão (animação de altura via grid 0fr→1fr).
+                 O padding vive no .cat-body-inner (padding no elemento com
+                 overflow:hidden não colapsaria a 0 quando fechado). -->
+            <div class="cat-body-wrap">
+              <div class="cat-body">
+                <div class="cat-body-inner">
             <template v-if="!areas[cat.slug]?.remove">
               <!-- Arquivos do comprador: boxes visuais + adicionar no FIM -->
               <p class="up-label">
@@ -647,10 +799,16 @@ async function submit(asDraft: boolean) {
             >
               {{ areas[cat.slug]?.remove ? 'Desfazer remoção' : 'Remover do pacote' }}
             </button>
-          </fieldset>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+      </div>
 
+      <!-- ============ PASSO 3: Capa e preço ============ -->
+      <div v-show="step === 3" class="step">
       <!-- Capa: box visual 4:3 (mesma linguagem dos uploads por categoria) -->
       <div class="field">
         <span>
@@ -721,27 +879,90 @@ async function submit(asDraft: boolean) {
         </p>
       </div>
       <p v-else-if="simulating" class="muted">Calculando repasse…</p>
+      </div>
+
+      <!-- ============ PASSO 4: Revisão e envio ============ -->
+      <div v-show="step === 4" class="step">
+        <!-- Resumo do que será enviado -->
+        <div class="review">
+          <h2 class="review-title">Confira antes de enviar</h2>
+          <dl class="review-rows">
+            <div class="review-row">
+              <dt>Título</dt>
+              <dd>{{ title || '—' }}</dd>
+            </div>
+            <div v-if="musicalId" class="review-row">
+              <dt>Tema</dt>
+              <dd>{{ musicalOptions.find((m) => m.id === musicalId)?.name }}</dd>
+            </div>
+            <div class="review-row">
+              <dt>Inclui</dt>
+              <dd>
+                <span v-if="!includedSummary.length" class="muted">nenhuma categoria</span>
+                <span v-for="it in includedSummary" v-else :key="it.name" class="review-chip">
+                  {{ it.name }} ({{ it.count }})
+                </span>
+              </dd>
+            </div>
+            <div class="review-row">
+              <dt>Preço</dt>
+              <dd>{{ priceCentsInput ? formatPrice(priceCentsInput) : '—' }}</dd>
+            </div>
+            <div v-if="simulation" class="review-row">
+              <dt>Você recebe (por venda)</dt>
+              <dd class="gold">{{ formatPrice(simulation.valorLiquidoArtistaCents) }}</dd>
+            </div>
+          </dl>
+          <p class="muted small">
+            Ao enviar, a obra entra na fila de revisão da equipe. Você acompanha o status em
+            "Meus Conteúdos".
+          </p>
+        </div>
+      </div>
 
       <p v-if="error" class="error">{{ error }}</p>
 
-      <div class="actions">
+      <!-- Navegação do assistente -->
+      <div class="wizard-nav">
+        <button v-if="step > 1" type="button" class="secondary" @click="back">← Voltar</button>
+        <span class="nav-spacer" />
+        <!-- Rascunho disponível a partir do passo 2 (já com conteúdo);
+             não exige preço, então dá para salvar sem chegar ao fim. -->
         <button
+          v-if="step >= 2"
+          type="button"
+          class="secondary"
+          :disabled="sending || contractOk === false"
+          @click="submit(true)"
+        >
+          Salvar rascunho
+        </button>
+        <button v-if="step < TOTAL_STEPS" type="submit" class="primary">Continuar →</button>
+        <button
+          v-else
           type="submit"
           class="primary"
           :disabled="sending || contractOk === false || stripeOk === false"
         >
           {{ sending ? 'Enviando…' : 'Enviar para revisão' }}
         </button>
-        <button
-          type="button"
-          class="secondary"
-          :disabled="sending || contractOk === false"
-          @click="submit(true)"
-        >
-          Salvar como rascunho
-        </button>
       </div>
     </form>
+      </div>
+
+      <!-- Preview AO VIVO do card, à direita (atualiza a cada passo) -->
+      <aside class="publish-preview">
+        <p class="preview-label">Prévia da publicação</p>
+        <PublishPreview
+          :title="title"
+          :price-cents="priceCentsInput"
+          :cover-url="previewCover"
+          :categories="previewCategories"
+          :musical-name="previewMusicalName"
+          :artist-name="artistName"
+        />
+      </aside>
+    </div>
   </AppLayout>
 </template>
 
@@ -756,11 +977,213 @@ async function submit(asDraft: boolean) {
   max-width: 640px;
 }
 
+// Duas colunas: assistente à esquerda, preview do card à direita (sticky).
+.publish-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 640px) 260px;
+  gap: 2.5rem;
+  align-items: start;
+
+  // Empilha em telas estreitas (preview vai para baixo do formulário).
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.publish-main {
+  min-width: 0;
+}
+
+.publish-preview {
+  position: sticky;
+  top: 84px; // abaixo do header fixo (64px) + folga
+
+  @media (max-width: 960px) {
+    position: static;
+    max-width: 260px;
+  }
+}
+
+.preview-label {
+  @include label-type;
+  font-size: 0.68rem;
+  color: $text-secondary;
+  margin-bottom: 0.75rem;
+}
+
 .form {
   max-width: 640px;
   display: flex;
   flex-direction: column;
   gap: 1.4rem;
+}
+
+// ---- Assistente: barra de progresso (stepper) --------------------------------
+// Grupo blocado (guia §3): 4 células coladas, atual em dourado, concluídas
+// com ✓ e clicáveis para voltar.
+.stepper {
+  list-style: none;
+  display: flex;
+  max-width: 640px;
+  margin: 1.25rem 0 2rem;
+  border: 1px solid $line;
+}
+
+.stepper-item {
+  flex: 1;
+
+  & + & {
+    border-left: 1px solid $line;
+  }
+}
+
+.stepper-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.6rem;
+  background: none;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.stepper-num {
+  @include label-type;
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid $line;
+  font-size: 0.68rem;
+}
+
+.stepper-label {
+  @include label-type;
+  font-size: 0.64rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepper-item.current .stepper-btn {
+  color: $gold-text;
+  background: $fill-active-solid;
+
+  .stepper-num {
+    border-color: rgba($color-primary, 0.6);
+    color: $gold-text;
+  }
+}
+
+.stepper-item.done .stepper-btn {
+  color: $gold-text;
+
+  &:hover {
+    background: $fill-hover-solid;
+  }
+
+  .stepper-num {
+    border-color: rgba($color-primary, 0.5);
+    color: $gold-text;
+  }
+}
+
+// Estreito: só os números (some o rótulo).
+@media (max-width: 560px) {
+  .stepper-label {
+    display: none;
+  }
+}
+
+// Cada passo é uma vista da form (mesma gramática de campos).
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+// Navegação: Voltar à esquerda, Continuar/Enviar à direita.
+.wizard-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+// Revisão (passo 4): grupo blocado com as linhas do resumo.
+.review {
+  border: 1px solid $line;
+  background: $fill-hover-solid;
+  padding: 1.1rem 1.25rem;
+}
+
+.review-title {
+  @include label-type;
+  color: $text-secondary;
+  margin-bottom: 0.75rem;
+}
+
+.review-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(var(--fg-rgb), 0.08);
+  font-size: 0.9rem;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  dt {
+    color: rgba(var(--fg-rgb), 0.6);
+    flex-shrink: 0;
+  }
+
+  dd {
+    text-align: right;
+    color: rgba(var(--fg-rgb), 0.9);
+    font-weight: 600;
+
+    &.gold {
+      color: $gold-strong;
+    }
+  }
+}
+
+.review-chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  @include label-type;
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid $line;
+  color: $text-secondary;
+}
+
+.small {
+  font-size: 0.82rem;
+  margin-top: 0.6rem;
 }
 
 .field {
@@ -804,10 +1227,10 @@ async function submit(asDraft: boolean) {
   flex-direction: column;
 }
 
+// Cada categoria é um ACORDEÃO: cabeçalho clicável + corpo que expande.
 .cat-area {
   border: 1px solid $line;
   margin: 0 0 -1px;
-  padding: 1rem 1.25rem 1.1rem;
   transition: border-color 0.5s $ease-brand, background-color 0.5s $ease-brand;
 
   &.included {
@@ -822,16 +1245,67 @@ async function submit(asDraft: boolean) {
   }
 }
 
+// Cabeçalho: botão de largura total (nome + estado + contagem + chevron).
 .cat-head {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0 0.4rem;
+  padding: 0.9rem 1.25rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background-color 0.5s $ease-brand;
+
+  &:hover {
+    background: $fill-hover-solid;
+  }
 }
 
+// Nome à esquerda; o `auto` empurra estado + contagem + chevron p/ direita.
 .cat-name {
   font-family: $font-display;
   font-size: 1.05rem;
+  margin-right: auto;
+}
+
+.cat-count {
+  font-size: 0.78rem;
+  color: $text-dim;
+}
+
+// Chevron no fim, gira quando o acordeão está aberto.
+.cat-chevron {
+  color: $text-secondary;
+  transition: transform 0.4s $ease-brand;
+}
+.cat-area.open .cat-chevron {
+  transform: rotate(180deg);
+}
+
+// Corpo: anima a altura via grid 0fr→1fr (sem saber a altura do conteúdo);
+// o overflow do .cat-body recorta quando fechado.
+.cat-body-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s $ease-brand;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+.cat-area.open .cat-body-wrap {
+  grid-template-rows: 1fr;
+}
+
+.cat-body {
+  overflow: hidden; // BFC + recorte; SEM padding (senão não colapsa a 0)
+}
+
+.cat-body-inner {
+  padding: 0 1.25rem 1.1rem;
 }
 
 // Tag de estado da categoria: badge blocado (guia §5).
@@ -1032,12 +1506,6 @@ async function submit(asDraft: boolean) {
     padding: 0.4rem 0.85rem;
     font-size: 0.7rem;
   }
-}
-
-.actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
 }
 
 .primary {

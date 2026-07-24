@@ -1,13 +1,20 @@
 // Scroll suave global (Lenis — https://lenis.darkroom.engineering).
-// Instanciado uma vez no main.ts; com prefers-reduced-motion ativo,
-// o Lenis nem é criado e fica o scroll nativo.
+// Instanciado uma vez no main.ts; NÃO é criado quando:
+//  - prefers-reduced-motion está ativo, ou
+//  - a resolução é MOBILE (≤1080px, mesmo breakpoint do header): no toque
+//    o scroll nativo (com momentum) é melhor e o Lenis pode brigar com ele.
+// Em ambos os casos fica o scroll nativo. A decisão é feita no carregamento.
 import Lenis from 'lenis'
 import 'lenis/dist/lenis.css'
 
 export let lenis: Lenis | null = null
 
+// Breakpoint mobile do app (o header vira hambúrguer a partir daqui).
+const MOBILE_QUERY = '(max-width: 1080px)'
+
 export function setupSmoothScroll() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (window.matchMedia(MOBILE_QUERY).matches) return // mobile: scroll nativo
   // autoRaf: o próprio Lenis mantém o loop de requestAnimationFrame.
   lenis = new Lenis({ autoRaf: true })
 }
