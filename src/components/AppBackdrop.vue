@@ -160,6 +160,30 @@ onBeforeUnmount(() => {
   }
 }
 
+// MOBILE — correção do crash do Safari no iPhone (2026-07-27). Cada anel
+// tinha will-change + animação de opacidade + translate3d: os três promovem
+// o elemento a CAMADA COMPOSTA do tamanho do próprio anel. Os 18 anéis (o
+// maior tem 1980×1980 CSS px → ~140 MB de buffer em DPR 3) somavam bem mais
+// memória de GPU do que o processo do WebKit aguenta no celular, e o Safari
+// matava a aba ("Um problema ocorreu repetidamente"). Sem promoção, os arcos
+// são pintados na camada da página, recortados pela viewport — custo
+// constante. Nada se perde: o Lenis não é instanciado no mobile (scroll.ts),
+// então --scroll fica 0 aqui e o parallax já não acontecia.
+@media (max-width: 1080px) {
+  .ring {
+    animation: none;
+    will-change: auto;
+    transform: translate(50%, -50%);
+  }
+
+  // Raio maior que a diagonal da tela = arco inteiramente fora dela; no
+  // celular esses dois só custavam pintura.
+  .ring-17,
+  .ring-18 {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ring {
     animation: none;
