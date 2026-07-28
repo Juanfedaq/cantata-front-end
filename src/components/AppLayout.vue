@@ -75,7 +75,10 @@ function logout() {
          sessão) e, ao lado, o switch de tema — grupos separados por gap. -->
     <!-- Mobile (≤1080px): botão de menu FLUTUANTE no canto inferior
          direito (zona do polegar) + painel em tela cheia. Mora FORA do
-         header: o backdrop-filter dele quebraria o position:fixed. -->
+         header — originalmente porque o backdrop-filter do header criava
+         bloco de contenção e quebrava o position:fixed dos descendentes;
+         desde 28/jul o header é opaco (sem filtro), mas a estrutura fica
+         como está: a barra do mobile é um header próprio, embaixo. -->
     <!-- Mobile (≤1080px): hambúrguer no canto esquerdo expande o painel
          com nav + conta; o menu desktop some. -->
     <div ref="mobileEl" class="mobile-menu">
@@ -579,8 +582,8 @@ $line: rgba(var(--fg-rgb), 0.1);
   display: none;
 }
 
-// Barra inferior do mobile: o header de baixo — vidro com linha superior,
-// largura total, com o botão do menu colado no canto direito.
+// Barra inferior do mobile: o header de baixo — opaca, com linha superior,
+// largura total e o botão do menu colado no canto direito.
 .mobile-bar {
   position: fixed;
   left: 0;
@@ -589,9 +592,12 @@ $line: rgba(var(--fg-rgb), 0.1);
   z-index: 60;
   height: calc(56px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: rgba(var(--bg-rgb), 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  // OPACA (2026-07-28): era 0.82 com blur — alinhada ao .header, que ficou
+  // opaco no mesmo dia. As duas barras da interface seguem a mesma regra.
+  // Ganho extra no celular: sem backdrop-filter, o WebKit não precisa
+  // manter uma camada composta da largura da tela (mesma família de
+  // problema do crash do AppBackdrop no iPhone, 2026-07-27).
+  background: rgb(var(--bg-rgb));
   border-top: 1px solid $line;
 }
 
