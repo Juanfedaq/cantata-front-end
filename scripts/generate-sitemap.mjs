@@ -13,15 +13,11 @@ import { fileURLToPath } from 'node:url'
 const SITE_URL = 'https://cantata.com.br'
 
 // Espelho das rotas públicas indexáveis do src/router/index.ts.
-const STATIC_ROUTES = [
-  '/',
-  '/inicio',
-  '/biblioteca',
-  '/artistas',
-  '/privacidade',
-  '/login',
-  '/register',
-]
+// SEM '/artistas': a vitrine com vários artistas está desligada no router
+// desde 2026-07-20 (decisão de produto) — anunciá-la no sitemap mandaria o
+// buscador a uma URL que só redireciona. Os perfis individuais
+// (/artistas/:id) continuam entrando pelas rotas dinâmicas abaixo.
+const STATIC_ROUTES = ['/', '/inicio', '/biblioteca', '/privacidade', '/login', '/register']
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 

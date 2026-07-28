@@ -30,7 +30,15 @@ export default defineConfig(({ command }) => ({
   // SPA puras (fallback index.html); /inicio, /biblioteca e /artistas ficam
   // de fora por dependerem de dados da API em runtime (e motion-v).
   ssgOptions: {
-    includedRoutes: () => ["/", "/privacidade", "/login", "/register", "/forgot-password"],
+    includedRoutes: () => [
+      "/",
+      "/inicio",
+      "/biblioteca",
+      "/privacidade",
+      "/login",
+      "/register",
+      "/forgot-password",
+    ],
     script: "async",
     formatting: "minify",
   },

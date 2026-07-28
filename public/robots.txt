@@ -8,5 +8,7 @@ Disallow: /contrato
 Disallow: /artista/
 Disallow: /reset-password
 Disallow: /verify-email
+# Shell vazio da SPA (fallback do .htaccess) — é infraestrutura, não página.
+Disallow: /200.html
 
 Sitemap: https://cantata.com.br/sitemap.xml

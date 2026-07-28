@@ -8,7 +8,7 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite-ssg build",
-    "postbuild-only": "node scripts/generate-sitemap.mjs",
+    "postbuild-only": "node scripts/generate-sitemap.mjs && node scripts/generate-spa-shell.mjs",
     "type-check": "vue-tsc --build",
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",

@@ -1,17 +1,21 @@
 # Fallback de SPA (Apache/LiteSpeed — Hostinger):
-# qualquer rota que não seja um arquivo/pasta real cai no index.html,
+# qualquer rota que não seja um arquivo/pasta real cai no shell da SPA,
 # para os deep links dos e-mails (/verify-email, /reset-password) funcionarem.
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
-  # Páginas pré-renderizadas (vite-ssg): /privacidade serve privacidade.html
+  # Páginas pré-renderizadas (vite-ssg): /biblioteca serve biblioteca.html
   # com a URL limpa — crawlers recebem o HTML pronto, sem executar JS.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteCond %{DOCUMENT_ROOT}/$1.html -f
   RewriteRule ^(.+)$ /$1.html [L]
+  # Demais rotas (/conteudo/:id, /compras, /perfil…): shell VAZIO da SPA,
+  # nunca o index.html — este é o pré-render da ComingSoon, e servi-lo aqui
+  # daria a todas elas o canonical da home e uma hidratação sobre o DOM
+  # errado. Ver scripts/generate-spa-shell.mjs.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+  RewriteRule . /200.html [L]
 </IfModule>
