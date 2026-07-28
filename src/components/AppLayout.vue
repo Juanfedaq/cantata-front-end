@@ -352,9 +352,10 @@ $line: rgba(var(--fg-rgb), 0.1);
   gap: 1.5rem;
   height: 64px;
   padding: 0 1.5rem;
-  background: rgba(var(--bg-rgb), 0.6);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  // Header OPACO (2026-07-28): revê a translucidez de 22/jul (era 0.6).
+  // Com alpha 1 o backdrop-filter não teria o que desfocar — removido
+  // junto, senão ficaria custo de composição sem efeito visível.
+  background: rgb(var(--bg-rgb));
   border-bottom: 1px solid $line;
 }
 
