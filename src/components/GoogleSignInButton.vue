@@ -7,11 +7,33 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-// Sem tipos oficiais do GIS instalados — o global só existe depois do script
-// carregar, então tratamos como `any` aqui mesmo (janela estreita e isolada).
+// Sem os tipos oficiais do GIS instalados (@types/google.accounts), declaramos
+// à mão SÓ o que usamos — initialize + renderButton. O global é opcional
+// porque só existe depois do script do Google carregar.
+interface GsiIdConfig {
+  client_id: string
+  callback: (response: { credential: string }) => void
+}
+
+interface GsiButtonOptions {
+  type: 'standard' | 'icon'
+  theme?: 'outline' | 'filled_blue' | 'filled_black'
+  size?: 'small' | 'medium' | 'large'
+  shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+  width?: number
+  locale?: string
+}
+
 declare global {
   interface Window {
-    google?: any
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: GsiIdConfig) => void
+          renderButton: (parent: HTMLElement, options: GsiButtonOptions) => void
+        }
+      }
+    }
   }
 }
 
@@ -55,7 +77,13 @@ onMounted(async () => {
     await loadGoogleScript()
     if (unmounted || !container.value) return
 
-    window.google.accounts.id.initialize({
+    // O script carregou mas o global pode não ter sido publicado (bloqueio de
+    // rede/extensão) — sem esta guarda, o TS não estreita o tipo e o erro
+    // viraria um TypeError cru em vez da mensagem amigável do catch.
+    const gsi = window.google?.accounts.id
+    if (!gsi) throw new Error('Google Identity Services não inicializou.')
+
+    gsi.initialize({
       client_id: clientId,
       callback: async (response: { credential: string }) => {
         try {
@@ -66,7 +94,7 @@ onMounted(async () => {
         }
       },
     })
-    window.google.accounts.id.renderButton(container.value, {
+    gsi.renderButton(container.value, {
       type: 'standard',
       theme: 'outline',
       size: 'large',
