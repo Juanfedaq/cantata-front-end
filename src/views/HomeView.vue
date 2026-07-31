@@ -32,6 +32,11 @@ function rise(delay = 0, y = 24) {
 const categories = ref<Category[]>([]);
 const latest = ref<CatalogItem[]>([]);
 const loading = ref(true);
+// Falha de carregamento é DIFERENTE de catálogo vazio (achado B3-1): sem esta
+// distinção, a API fora do ar exibia "Nenhum conteúdo publicado ainda" — o
+// visitante ia embora achando que a plataforma não tem obra nenhuma. Mesmo
+// padrão que a BibliotecaView já usava.
+const error = ref("");
 
 onMounted(async () => {
   try {
@@ -42,7 +47,7 @@ onMounted(async () => {
     categories.value = cats.categories;
     latest.value = items.items;
   } catch {
-    // Home pública: falha de rede só deixa as seções vazias.
+    error.value = "Não foi possível carregar o catálogo agora. Recarregue a página em instantes.";
   } finally {
     loading.value = false;
   }
@@ -81,9 +86,11 @@ onMounted(async () => {
       </motion.section>
 
       <!-- Menu de categorias -->
-      <motion.section class="section" v-bind="rise()">
+      <motion.section v-if="loading || error || categories.length" class="section" v-bind="rise()">
         <h2 class="section-title">Categorias</h2>
-        <div class="categories">
+        <p v-if="loading" class="muted">Carregando…</p>
+        <p v-else-if="error" class="error">{{ error }}</p>
+        <div v-else class="categories">
           <MotionLink
             v-for="(cat, i) in categories"
             :key="cat.id"
@@ -102,6 +109,7 @@ onMounted(async () => {
       <motion.section class="section" v-bind="rise()">
         <h2 class="section-title">Últimos lançamentos</h2>
         <p v-if="loading" class="muted">Carregando…</p>
+        <p v-else-if="error" class="error">{{ error }}</p>
         <p v-else-if="!latest.length" class="muted">Nenhum conteúdo publicado ainda.</p>
         <div v-else class="grid">
           <MotionContentCard
@@ -272,5 +280,10 @@ onMounted(async () => {
 
 .muted {
   color: rgba(var(--fg-rgb), 0.5);
+}
+
+// Mesma tinta da BibliotecaView — falha de carregamento não é texto neutro.
+.error {
+  color: $color-error;
 }
 </style>

@@ -53,7 +53,10 @@ defineProps<{
       <path d="M12.2 12l3.9 3 1.3 3.8" />
     </template>
 
-    <!-- Musicais: máscara de teatro (datas especiais do ano) -->
+    <!-- Máscara de teatro. SEM USO hoje (2026-07-28): "musicais" virou TEMA
+         opcional em 23/jul e deixou de ser categoria; nenhuma view passa este
+         slug. Mantido de propósito para quando o tema ganhar ícone — não é
+         indício de que exista uma categoria "musicais". -->
     <template v-else-if="slug === 'musicais'">
       <path d="M5.5 4.6c3.2 1.5 9.8 1.5 13 0v6.6c0 5.2-3 8.8-6.5 8.8s-6.5-3.6-6.5-8.8V4.6Z" />
       <path d="M8.7 10c.6-.8 1.7-.8 2.3 0" />
