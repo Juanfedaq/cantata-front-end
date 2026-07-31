@@ -8,7 +8,7 @@ import AppLayout from '@/components/AppLayout.vue'
   <AppLayout>
     <article class="policy">
       <h1 class="page-title">Política de Privacidade</h1>
-      <p class="updated">Última atualização: 8 de julho de 2026</p>
+      <p class="updated">Última atualização: 28 de julho de 2026</p>
 
       <!-- Resumo emoldurado (bloco solto → moldura completa, guia §3) -->
       <div class="summary">
@@ -95,10 +95,24 @@ import AppLayout from '@/components/AppLayout.vue'
         <ul>
           <li>Confirmar a existência de tratamento e acessar seus dados.</li>
           <li>Corrigir dados incompletos, inexatos ou desatualizados.</li>
-          <li>Solicitar a exclusão da sua conta e dos dados associados.</li>
+          <li>Excluir sua conta e os dados pessoais associados.</li>
           <li>Revogar consentimentos dados anteriormente.</li>
         </ul>
-        <p>Para exercer qualquer um deles, fale com a equipe pelos canais oficiais do Cantata.</p>
+        <p>
+          <strong>A exclusão da conta você mesmo faz</strong>, sem precisar
+          pedir: entre em <RouterLink to="/perfil">Meu Perfil</RouterLink>
+          e use "Excluir minha conta". A ação é imediata e não tem volta.
+        </p>
+        <p>
+          Ao excluir, removemos seu nome, e-mail, senha, foto e biografia, e
+          encerramos suas sessões. <strong>O registro das transações é
+          mantido</strong> — como explicamos no item 6, a lei nos obriga a
+          guardar o histórico fiscal de compras e vendas. Na prática: quem
+          comprou uma obra sua continua podendo baixá-la, e as suas compras
+          seguem no nosso registro contábil, sem ligação com seus dados
+          pessoais. Suas obras saem do catálogo e não podem mais ser vendidas.
+        </p>
+        <p>Para os demais direitos, fale com a equipe pelos canais oficiais do Cantata.</p>
       </section>
 
       <section>

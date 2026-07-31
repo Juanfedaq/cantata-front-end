@@ -41,6 +41,19 @@ npm run dev
 npm run build
 ```
 
+O build faz mais do que compilar (ver `docs/paginas.md`):
+
+1. **type-check estrito** — mais rigoroso que `npx vue-tsc --noEmit` avulso;
+   rode `npm run build` antes de considerar o front pronto;
+2. **pré-renderização (vite-ssg)** de 7 rotas públicas;
+3. `scripts/generate-sitemap.mjs` — sitemap com as rotas estáticas + as obras e
+   perfis buscados na API (se ela não responder, o build **não** falha: sai só
+   com as estáticas e avisa);
+4. `scripts/generate-spa-shell.mjs` — `dist/200.html`, o shell vazio para onde
+   o `.htaccess` manda as rotas não pré-renderizadas.
+
+⚠️ **No deploy**, conferir que `.htaccess` e `200.html` chegaram ao servidor.
+
 ### Lint with [ESLint](https://eslint.org/)
 
 ```sh
