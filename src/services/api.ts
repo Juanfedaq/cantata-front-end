@@ -472,6 +472,9 @@ export interface AdminContent {
   coverPath: string | null
   createdAt: string
   updatedAt: string
+  /** Takedown do admin: fora do ar, e o artista não reverte. */
+  adminBlocked: boolean
+  adminBlockedReason: string | null
   musical: Musical | null
   items: ContentItem[]
   artist: { id: number; name: string | null; email: string }
@@ -510,6 +513,22 @@ export const adminApi = {
     request<{ message: string }>(`/admin/contents/${id}/reject`, {
       method: 'POST',
       body: { reason },
+      auth: true,
+    }),
+
+  // Takedown de obra JÁ PUBLICADA (direito autoral, conteúdo impróprio):
+  // some da vitrine E do link direto, e bloqueia novas compras. Quem já
+  // comprou continua baixando.
+  block: (id: number, reason: string) =>
+    request<{ message: string; adminBlocked: boolean }>(`/admin/contents/${id}/block`, {
+      method: 'POST',
+      body: { reason },
+      auth: true,
+    }),
+
+  unblock: (id: number) =>
+    request<{ message: string; adminBlocked: boolean }>(`/admin/contents/${id}/unblock`, {
+      method: 'POST',
       auth: true,
     }),
 

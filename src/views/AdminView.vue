@@ -78,6 +78,40 @@ async function reject(c: AdminContent) {
   }
 }
 
+// ---- Bloqueio de obra publicada (takedown) ----
+// Só para obra APROVADA: tira do ar na hora (vitrine, link direto e novas
+// compras). Não desfaz venda nenhuma — quem comprou continua baixando.
+const blockingId = ref<number | null>(null)
+const blockReason = ref('')
+
+async function block(c: AdminContent) {
+  if (!blockReason.value.trim()) {
+    error.value = 'Informe o motivo do bloqueio.'
+    return
+  }
+  try {
+    await adminApi.block(c.id, blockReason.value.trim())
+    // A obra CONTINUA na lista (o admin precisa poder desbloquear) — só muda
+    // de estado, ao contrário de aprovar/reprovar, que a tiram da fila.
+    c.adminBlocked = true
+    c.adminBlockedReason = blockReason.value.trim()
+    blockingId.value = null
+    blockReason.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao bloquear.'
+  }
+}
+
+async function unblock(c: AdminContent) {
+  try {
+    await adminApi.unblock(c.id)
+    c.adminBlocked = false
+    c.adminBlockedReason = null
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao desbloquear.'
+  }
+}
+
 // ---- Usuários ----
 const users = ref<AdminUser[]>([])
 const usersTotal = ref(0)
@@ -259,6 +293,31 @@ onMounted(loadContents)
           <div v-if="rejectingId === c.id" class="reject-box">
             <textarea v-model="rejectReason" rows="2" placeholder="Motivo da reprovação (obrigatório — o artista verá isto)" />
             <button class="no-btn" @click="reject(c)">Confirmar reprovação</button>
+          </div>
+
+          <!-- Takedown: só faz sentido em obra já publicada. -->
+          <p v-if="c.adminBlocked" class="blocked-note">
+            ⛔ Obra bloqueada e fora do ar<span v-if="c.adminBlockedReason">: {{ c.adminBlockedReason }}</span>
+          </p>
+
+          <div v-if="c.status === 'aprovado'" class="mod-actions">
+            <button v-if="c.adminBlocked" class="ok-btn" @click="unblock(c)">Desbloquear</button>
+            <button
+              v-else
+              class="no-btn"
+              @click="blockingId = blockingId === c.id ? null : c.id"
+            >
+              Bloquear (tirar do ar)
+            </button>
+          </div>
+
+          <div v-if="blockingId === c.id" class="reject-box">
+            <textarea v-model="blockReason" rows="2" placeholder="Motivo do bloqueio (obrigatório — fica registrado e o artista vê)" />
+            <p class="block-warning">
+              A obra sai da biblioteca, do link direto e não pode mais ser comprada.
+              Quem já comprou continua com o download.
+            </p>
+            <button class="no-btn" @click="block(c)">Confirmar bloqueio</button>
           </div>
         </li>
       </ul>
@@ -496,6 +555,24 @@ onMounted(loadContents)
   margin-top: 0.5rem;
   color: $color-error;
   font-size: 0.85rem;
+}
+
+// Takedown: mesmo tom de erro do motivo de reprovação, com fundo para
+// destacar que a obra está FORA DO AR agora (não é histórico).
+.blocked-note {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba($color-error, 0.4);
+  background: rgba($color-error, 0.1);
+  color: $color-error;
+  font-size: 0.85rem;
+}
+
+.block-warning {
+  margin: 0.5rem 0;
+  color: rgba(var(--fg-rgb), 0.7);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .table-wrap {
