@@ -127,6 +127,16 @@ export const authApi = {
   resetPassword: (payload: { token: string; password: string }) =>
     request<{ message: string }>('/auth/reset-password', { method: 'POST', body: payload }),
 
+  // Exclusão de conta pelo titular (LGPD). Anonimiza os dados pessoais; o
+  // histórico de compras é mantido por obrigação fiscal. Confirmação: senha,
+  // ou o próprio e-mail quando a conta é só-Google (não tem senha).
+  deleteAccount: (payload: { password?: string; confirmEmail?: string }) =>
+    request<{ message: string }>('/auth/account', {
+      method: 'DELETE',
+      body: payload,
+      auth: true,
+    }),
+
   me: () => request<{ user: AuthUser }>('/me', { auth: true }),
 }
 

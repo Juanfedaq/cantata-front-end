@@ -6,7 +6,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
-import { artistsApi } from '@/services/api'
+import { artistsApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -30,6 +30,37 @@ async function upgrade() {
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Erro ao fazer o upgrade.'
     upgrading.value = false
+  }
+}
+
+// ---- Exclusão de conta (LGPD) ----
+// Ação irreversível: pede confirmação explícita (senha, ou o e-mail quando a
+// conta é só-Google). O backend anonimiza os dados pessoais e mantém o
+// histórico de compras, que é obrigação fiscal — o texto abaixo diz isso ao
+// titular ANTES de ele confirmar, não depois.
+const deleting = ref(false)
+const deleteOpen = ref(false)
+const deletePassword = ref('')
+const deleteEmail = ref('')
+// Conta sem senha = criada pelo Google (o backend pede o e-mail como confirmação).
+const isGoogleOnly = ref(false)
+
+async function deleteAccount() {
+  deleting.value = true
+  error.value = ''
+  try {
+    await authApi.deleteAccount(
+      isGoogleOnly.value ? { confirmEmail: deleteEmail.value } : { password: deletePassword.value },
+    )
+    auth.logout()
+    router.push('/')
+  } catch (err) {
+    // O backend responde CONFIRM_EMAIL_REQUIRED quando a conta é só-Google:
+    // troca o campo em vez de deixar o titular tentando a senha que não tem.
+    const message = err instanceof Error ? err.message : 'Erro ao excluir a conta.'
+    if (message.includes('e-mail da conta')) isGoogleOnly.value = true
+    error.value = message
+    deleting.value = false
   }
 }
 
@@ -171,6 +202,43 @@ async function saveBio() {
         </button>
       </div>
     </section>
+
+    <!-- Exclusão de conta: por último e visualmente separado, para não
+         competir com as ações do dia a dia. -->
+    <section class="group danger">
+      <h2 class="group-label">Excluir minha conta</h2>
+      <p class="danger-text">
+        Seus dados pessoais — nome, e-mail, foto e biografia — são removidos e a
+        conta deixa de existir. <strong>O histórico de compras é mantido</strong>,
+        por obrigação fiscal: quem comprou suas obras continua com o download, e
+        as suas compras seguem no registro contábil da plataforma. Suas obras
+        saem do catálogo e não podem mais ser vendidas. <strong>Não há
+        volta.</strong>
+      </p>
+
+      <button v-if="!deleteOpen" class="danger-btn" @click="deleteOpen = true">
+        Quero excluir minha conta
+      </button>
+
+      <div v-else class="danger-confirm">
+        <label v-if="isGoogleOnly" class="danger-label">
+          Digite o e-mail da conta para confirmar
+          <input v-model="deleteEmail" type="email" class="input" autocomplete="off" />
+        </label>
+        <label v-else class="danger-label">
+          Digite sua senha para confirmar
+          <input v-model="deletePassword" type="password" class="input" autocomplete="current-password" />
+        </label>
+        <div class="danger-actions">
+          <button class="danger-btn" :disabled="deleting" @click="deleteAccount">
+            {{ deleting ? 'Excluindo…' : 'Excluir definitivamente' }}
+          </button>
+          <button class="cancel-btn" :disabled="deleting" @click="deleteOpen = false">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </section>
   </AppLayout>
 </template>
 
@@ -257,6 +325,61 @@ async function saveBio() {
   &.danger {
     color: $color-error;
   }
+}
+
+// Zona de exclusão de conta: mesma linguagem do resto (grupo blocado, sem
+// sombra), com a tinta de erro reservada para a ação irreversível.
+.danger {
+  border-color: rgba($color-error, 0.35);
+}
+
+.danger-text {
+  margin-bottom: 1rem;
+  color: rgba(var(--fg-rgb), 0.75);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.danger-btn {
+  @include label-type;
+  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+  border: 1px solid rgba($color-error, 0.5);
+  background: none;
+  color: $color-error;
+  cursor: pointer;
+  transition: background-color 0.5s $ease-brand;
+
+  &:hover:not(:disabled) {
+    background: rgba($color-error, 0.12);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.danger-label {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: rgba(var(--fg-rgb), 0.75);
+  font-size: 0.85rem;
+}
+
+.danger-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cancel-btn {
+  @include label-type;
+  padding: 0.6rem 1.4rem;
+  border: 1px solid $line;
+  background: none;
+  color: rgba(var(--fg-rgb), 0.7);
+  cursor: pointer;
 }
 
 .hint {
