@@ -33,6 +33,25 @@ async function upgrade() {
   }
 }
 
+// ---- Sair de todos os dispositivos ----
+// O logout normal só apaga o token deste navegador; o JWT segue válido no
+// servidor até expirar. Esta ação incrementa o token_version e derruba TODAS
+// as sessões — inclusive esta, por isso manda para o login em seguida.
+const loggingOutAll = ref(false)
+
+async function logoutAll() {
+  loggingOutAll.value = true
+  error.value = ''
+  try {
+    await authApi.logoutAll()
+    auth.logout()
+    router.push('/login')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao encerrar as sessões.'
+    loggingOutAll.value = false
+  }
+}
+
 // ---- Exclusão de conta (LGPD) ----
 // Ação irreversível: pede confirmação explícita (senha, ou o e-mail quando a
 // conta é só-Google). O backend anonimiza os dados pessoais e mantém o
@@ -201,6 +220,18 @@ async function saveBio() {
           {{ bioSaving ? 'Salvando…' : 'Salvar biografia' }}
         </button>
       </div>
+    </section>
+
+    <section class="group">
+      <h2 class="group-label">Segurança</h2>
+      <p class="danger-text">
+        Encerra a sessão em <strong>todos os aparelhos</strong>, inclusive neste.
+        Útil se você perdeu o celular ou esqueceu a conta aberta em outro
+        computador — sair pelo menu fecha só este navegador.
+      </p>
+      <button class="cancel-btn" :disabled="loggingOutAll" @click="logoutAll">
+        {{ loggingOutAll ? 'Encerrando…' : 'Sair de todos os dispositivos' }}
+      </button>
     </section>
 
     <!-- Exclusão de conta: por último e visualmente separado, para não

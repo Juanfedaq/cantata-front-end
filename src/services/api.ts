@@ -127,6 +127,11 @@ export const authApi = {
   resetPassword: (payload: { token: string; password: string }) =>
     request<{ message: string }>('/auth/reset-password', { method: 'POST', body: payload }),
 
+  // Encerra TODAS as sessões da conta (incrementa o token_version no
+  // servidor). O logout comum só apaga o token local — este serve para
+  // aparelho perdido ou conta esquecida aberta em outro computador.
+  logoutAll: () => request<{ message: string }>('/auth/logout-all', { method: 'POST', auth: true }),
+
   // Exclusão de conta pelo titular (LGPD). Anonimiza os dados pessoais; o
   // histórico de compras é mantido por obrigação fiscal. Confirmação: senha,
   // ou o próprio e-mail quando a conta é só-Google (não tem senha).
