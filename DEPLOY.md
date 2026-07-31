@@ -3,17 +3,15 @@
 > O backend tem o próprio `DEPLOY.md`. **A ordem entre os dois importa**:
 > migrar o banco → subir o backend → subir o front. Ver lá o porquê.
 
-## ⚠️ Como o front vai ao ar — CONFIRMAR
+## Como o front vai ao ar
 
-Em 2026-07-27 o servidor foi atualizado no instante do `git push`, com mtimes do
-momento do upload e com remoção dos arquivos antigos — sem nenhum `rsync` real
-(os que rodei eram `--dry-run`). Isso indica **auto-deploy pelo hPanel**, igual
-ao backend. Mas não há `.github/workflows` no repo nem `.git` dentro do
-`public_html`, então a evidência é indireta.
+**`git push` para a `main` publica sozinho** — auto-deploy pelo hPanel, igual ao
+backend (confirmado pelo Juan em 2026-07-28; a evidência de 27/jul apontava
+para isso, mas era indireta). **Não é preciso rodar `rsync`.**
 
-**Antes do primeiro deploy do beta, confirme com o Juan** se foi ele quem
-disparou um deploy manual naquele dia. Se foi, o `rsync` abaixo continua sendo
-obrigatório e o resto deste arquivo muda.
+⚠️ A consequência disso é que **não existe push "só para guardar"**: qualquer
+push na `main` vai ao ar na hora. Trabalho em andamento fica em branch, ou
+fica local.
 
 ## 1. Build
 
@@ -36,9 +34,10 @@ O build faz quatro coisas (ver `docs/paginas.md`):
 
 ## 2. Publicar
 
-Se o auto-deploy estiver confirmado: `git push` para a `main`.
+`git push` para a `main`. Em segundos o `public_html` é reescrito.
 
-Se não estiver, o caminho manual:
+O caminho manual abaixo fica documentado só para **emergência** (auto-deploy
+fora do ar, ou necessidade de republicar um build antigo sem mexer no git):
 
 ```bash
 rsync -av --delete -e "ssh -p 65002 -i ~/.ssh/cantata_hostinger" \
