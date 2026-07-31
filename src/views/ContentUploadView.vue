@@ -200,9 +200,18 @@ const simulation = ref<FeeSimulation | null>(null)
 const simulating = ref(false)
 let simulateTimer: ReturnType<typeof setTimeout> | undefined
 
+// Preço mínimo: NÃO fica fixo aqui. Vem do backend, que o calcula a partir
+// das taxas vigentes — abaixo dele o artista receberia zero ou menos que zero
+// (achado B1-14 da revisão para o beta). O fallback só vale até a primeira
+// resposta chegar; quem valida de verdade é o servidor.
+const minPriceCents = ref(500)
+const minPriceLabel = computed(
+  () => `R$ ${(minPriceCents.value / 100).toFixed(2).replace('.', ',')}`,
+)
+
 const priceCentsInput = computed(() => {
   const cents = Math.round(Number(priceReais.value.replace(',', '.')) * 100)
-  return Number.isInteger(cents) && cents >= 100 ? cents : null
+  return Number.isInteger(cents) && cents >= minPriceCents.value ? cents : null
 })
 
 watch(priceCentsInput, (cents) => {
@@ -269,7 +278,7 @@ function validateContent(): string | null {
 function validateStep(n: number): string | null {
   if (n === 1 && !title.value.trim()) return 'Informe o título.'
   if (n === 2) return validateContent()
-  if (n === 3 && priceCentsInput.value === null) return 'Preço mínimo de R$ 1,00.'
+  if (n === 3 && priceCentsInput.value === null) return `Preço mínimo de ${minPriceLabel.value}.`
   return null
 }
 
@@ -314,6 +323,15 @@ const previewMusicalName = computed(
 const artistName = computed(() => auth.user?.name || auth.user?.email || null)
 
 onMounted(async () => {
+  // Preço mínimo vigente (depende das taxas — ver minPriceCents acima).
+  // Simular com 0 é o jeito barato de ler a configuração: a conta devolve
+  // zeros e o que interessa vem em `config`.
+  try {
+    minPriceCents.value = (await artistsApi.simulateFees(0)).config.minPriceCents
+  } catch {
+    // Mantém o fallback; o servidor recusa de qualquer forma se estiver errado.
+  }
+
   // Contrato vigente aceito? Sem aceite, mostra o bloqueio com link.
   try {
     contractOk.value = (await artistsApi.contract()).upToDate

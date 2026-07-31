@@ -379,6 +379,8 @@ export interface FeeSimulation {
     minFeeCents: number
     gatewayPercent: number
     gatewayFixedCents: number
+    /** Menor preço publicável com as taxas vigentes (o back é a fonte). */
+    minPriceCents: number
   }
 }
 
