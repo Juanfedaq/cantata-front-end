@@ -77,6 +77,12 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   if (!res.ok) {
     // Sessão inválida/expirada numa chamada autenticada: derruba a sessão
     // local para a UI não ficar presa num estado "logado" que sempre falha.
+    //
+    // ⚠️ REGRA PARA QUEM ESCREVE ROTA NOVA (achado B3-2 da revisão para o
+    // beta): no backend, **401 é só para sessão inválida**. Ação recusada com
+    // sessão válida — senha de confirmação errada, permissão insuficiente,
+    // pré-condição não atendida — responde **403**. Um 401 nesses casos
+    // desloga o usuário aqui, silenciosamente, em vez de mostrar o erro.
     if (res.status === 401 && auth) {
       onUnauthorized?.()
     }

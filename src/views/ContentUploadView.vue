@@ -365,6 +365,11 @@ onMounted(async () => {
     try {
       const mine = (await contentsApi.mine()).contents
       const current = mine.find((c) => c.id === editingId.value)
+      if (!current) {
+        // Obra não é desta conta, foi excluída, ou o id da URL está errado.
+        error.value =
+          'Não encontramos esta obra na sua conta. Volte para Meus Conteúdos e abra a edição de novo.'
+      }
       if (current) {
         title.value = current.title
         description.value = current.description ?? ''
@@ -388,7 +393,13 @@ onMounted(async () => {
         }
       }
     } catch {
-      // Sem os dados atuais, o formulário funciona como novo envio.
+      // ATENÇÃO (achado B3-4): o comentário antigo dizia que "o formulário
+      // funciona como novo envio" — e isso era FALSO. O `editingId` continua
+      // preenchido, então o envio ainda é um PUT sobre a obra existente. Sem
+      // aviso, o artista via um formulário VAZIO numa tela de edição, concluía
+      // que a obra tinha perdido os dados e redigitava tudo por cima.
+      error.value =
+        'Não foi possível carregar os dados desta obra. Recarregue a página antes de editar — enviar agora pode sobrescrever o que está publicado.'
     }
   }
 })
