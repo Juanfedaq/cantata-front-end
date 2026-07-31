@@ -235,6 +235,13 @@ export interface MyContent {
   status: ContentStatus
   /** Oculta das vitrines públicas (compradores mantêm acesso). */
   hidden: boolean
+  /**
+   * Bloqueada pelo ADMIN (takedown). Diferente do `hidden`: o artista não
+   * reverte, some também do link direto e ninguém mais compra. Quem já
+   * comprou continua baixando.
+   */
+  adminBlocked: boolean
+  adminBlockedReason: string | null
   rejectionReason: string | null
   coverPath: string | null
   publishedAt: string | null

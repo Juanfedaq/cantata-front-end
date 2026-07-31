@@ -253,6 +253,16 @@ function confirmAction(content: MyContent) {
             <p v-if="c.status === 'reprovado' && c.rejectionReason" class="reason">
               Motivo: {{ c.rejectionReason }}
             </p>
+            <!-- Takedown do admin: sem este aviso o artista só percebia pelo
+                 sumiço da obra, sem saber por quê nem que foi decisão nossa. -->
+            <p v-if="c.adminBlocked" class="blocked">
+              ⛔ Fora do ar por decisão da administração<span v-if="c.adminBlockedReason">:
+              {{ c.adminBlockedReason }}</span>
+              <br />
+              <span class="blocked-help">
+                Quem já comprou continua com o download. Para contestar, fale com a equipe.
+              </span>
+            </p>
           </div>
       </RouterLink>
     </div>
@@ -260,6 +270,23 @@ function confirmAction(content: MyContent) {
 </template>
 
 <style scoped lang="scss">
+// Bloqueio do admin: mesma tinta de erro do motivo de reprovação, mas com
+// fundo — não é histórico, é o estado ATUAL da obra.
+.blocked {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba($color-error, 0.4);
+  background: rgba($color-error, 0.1);
+  color: $color-error;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.blocked-help {
+  color: rgba(var(--fg-rgb), 0.7);
+  font-size: 0.8rem;
+}
+
 .head {
   display: flex;
   align-items: center;
