@@ -5,11 +5,19 @@
 | `/` | `ComingSoonView.vue` | público — **INTOCÁVEL até o lançamento (spec §9.1)** |
 | `/inicio` | `HomeView.vue` — banner, destaque do sócio, categorias, últimos lançamentos | público |
 | `/biblioteca` | `BibliotecaView.vue` — catálogo, busca, filtros, paginação | público |
-| `/artistas` | `ArtistasView.vue` — vitrine | público |
+| ~~`/artistas`~~ | `ArtistasView.vue` — vitrine de vários artistas. **Rota COMENTADA no router desde 2026-07-20** (decisão de produto: a plataforma trabalha só com o perfil do sócio). O arquivo da view continua no repo, e a rota volta descomentando uma linha | — (redireciona para `/`) |
 | `/artistas/:id` | `ArtistProfileView.vue` — perfil público | público |
 | `/conteudo/:id` | `ContentDetailView.vue` — detalhe, prévia, comprar | público (compra exige login) |
 | `/privacidade` | `PrivacidadeView.vue` — política de privacidade (LGPD, cookies) | público |
-| `/login`, `/register`, etc. | views de auth (cartão no `AuthShell.vue`; fundo é o `AppBackdrop` global) | convidado |
+| `/login` | `LoginView.vue` — entrar (+ botão do Google, se configurado) | convidado |
+| `/register` | `RegisterView.vue` — criar conta | convidado |
+| `/forgot-password` | `ForgotPasswordView.vue` — pedir link de redefinição | convidado |
+| `/reset-password` | `ResetPasswordView.vue` — definir a senha nova (chega por link de e-mail, com token) | qualquer um com token |
+| `/verify-email` | `VerifyEmailView.vue` — confirma o e-mail (chega por link, com token) | qualquer um com token |
+
+> As cinco usam o cartão do `AuthShell.vue`; o fundo é o `AppBackdrop` global.
+> `/reset-password` e `/verify-email` **não** são `guestOnly` de propósito — o
+> link do e-mail precisa funcionar mesmo com sessão aberta.
 | `/dashboard` | **aposentada (2026-07-09)** — redirect para `/perfil`; as entradas viraram o dropdown do usuário no header (`AppLayout.vue`) | — |
 | `/compras` | `MinhasComprasView.vue` — histórico + download | logado |
 | `/perfil` | `ProfileView.vue` — foto de perfil (trocar/remover) + biografia (máx. 2000, validado no servidor); **Segurança** ("Sair de todos os dispositivos") e **Excluir minha conta** (LGPD, 2026-07-28); para não-artista mostra o convite "Torne-se um artista" (upgrade) | logado |
