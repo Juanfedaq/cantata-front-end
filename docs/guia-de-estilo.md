@@ -18,7 +18,7 @@ pesadas ou cores fora da paleta.
 > `_variables.scss` (injetado em todo `<style lang="scss">` pelo Vite):
 > `$ease-brand`, `$line`, `$text-secondary`, `$text-dim`, `$fill-hover`,
 > `$fill-active`, `$gold-text`, `$gold-strong`, `$color-error`,
-> `$color-success`, e os mixins `dissolved-lines`, `hover-arc`, `label-type`,
+> `$color-success`, e os mixins `dissolved-lines`, `hover-light`, `label-type`,
 > `block-button`, `block-button-primary`, `block-chip`, `block-input`,
 > `artist-waves` (§5.1). **Use-os — não redefina.**
 >
@@ -75,7 +75,8 @@ cards, tabelas, formulários:
 - **Hover "arco"** (padrão para item interativo blocado; substituiu a antiga
   hover-luz em 2026-07-08): um arco dourado de 1px nasce na base do elemento
   e expande para cima até se dissolver — a onda sonora da marca (§5.1) em
-  gesto único. Implementação: mixin global `hover-arc` (`_variables.scss`) —
+  gesto único. Implementação: mixin global `hover-light` (`_variables.scss`;
+  substituiu o antigo `hover-arc` em 2026-07-11) —
   círculo `::after` centrado na base, `scale(0.08) → scale(2.3)` com fade,
   recortado por `overflow: hidden`; só transform/opacity (GPU). Duração 2s
   com curva própria `cubic-bezier(0.35, 0.1, 0.35, 1)` — exceção registrada
@@ -121,7 +122,7 @@ em bloco):
    centrados no avatar, esmaecendo até a moldura (passo 22px, opacidade
    0.42 → ~0.03). Markup: `.waves > .wave.wave-1..16` (aria-hidden).
    O bloco precisa de `position: relative` + `overflow: hidden`.
-5. **Hover**: além do hover-arco e do nome em `$gold-text`, os anéis expandem
+5. **Hover**: além do hover-luz e do nome em `$gold-text`, os anéis expandem
    em cascata — `.wave { animation: sound-wave 1.8s $ease-brand infinite; }`
    (atrasos negativos já vêm do mixin; guarda de `prefers-reduced-motion`
    inclusa).
@@ -136,7 +137,7 @@ Referência de implementação: `HomeView.vue` (seção "Últimos artistas") e
 
 | Componente | Regra | Status |
 |---|---|---|
-| Header (`AppLayout.vue`) | **sem logomarca** (2026-07-08): menu blocado único centralizado, hover-arco; o botão do usuário (avatar `ArtistAvatar` 26px + nome + seta) abre um **dropdown blocado** (2026-07-09: Meu Perfil, Minhas Compras, Meus Conteúdos, Sair — painel com moldura 1px, itens colados separados por linha, vidro do header, entra com véu + descida leve em transform/opacity); ao lado, switch de tema de duas células (lua \| sol) com indicador deslizante (fill ativo + linha dourada na base, easing da marca) | ✅ aplicado |
+| Header (`AppLayout.vue`) | **sem logomarca** (2026-07-08): menu blocado único centralizado, hover-luz; **fundo OPACO desde 2026-07-28** (era translúcido 0.6 com blur — com fundo opaco o `backdrop-filter` virava custo de composição sem efeito visível, e no celular uma camada do tamanho da tela; a `.mobile-bar` acompanhou); o botão do usuário (avatar `ArtistAvatar` 26px + nome + seta) abre um **dropdown blocado** (2026-07-09: Meu Perfil, Minhas Compras, Meus Conteúdos, Sair — painel com moldura 1px, itens colados separados por linha, fundo opaco, entra com véu + descida leve em transform/opacity); ao lado, switch de tema de duas células (lua \| sol) com indicador deslizante (fill ativo + linha dourada na base, easing da marca) | ✅ aplicado |
 | Cards (`ContentCard.vue`, categorias da Home, Artistas) | moldura completa 1px, sem radius. Hover-arco só nos cards de categoria — **ContentCard e blocos de artista ficam SEM o arco** (2026-07-09; nos artistas a onda sonora já é o gesto do hover) | ✅ aplicado |
 | Botões (primário/secundário) | mixins `block-button(-primary)`; primário `rgba($color-primary, 0.1)` → `0.22` no hover | ✅ aplicado (2026-07-08) |
 | Filtros da Biblioteca (chips) + abas do Admin | mixin `block-chip`: grupo colado, bordas de 1px sobrepostas | ✅ aplicado (2026-07-08) |
@@ -173,7 +174,7 @@ Referência de implementação: `HomeView.vue` (seção "Últimos artistas") e
   (sem efeito de hover na sombra). **No tema escuro** a sombra preta some
   sobre o fundo `#11100d`, então a profundidade vem de um halo dourado bem
   fraco (`rgba($color-primary, 0.18)`, também fixo) via
-  `[data-theme='dark'] &`. **Card de MUSICAL** (`.is-musical`): a sombra
+  `[data-theme='dark'] &`. ⚠️ **Obsoleto:** o **card de MUSICAL** (`.is-musical`): a sombra
   inteira vira o dourado da marca (`rgba($color-primary, 0.4–0.45)`) e é o
   ÚNICO que aprofunda no hover (`0.55–0.6`) — segundo diferenciador do
   card, junto com o badge. A capa do musical também "RESPIRA": zoom em
@@ -182,5 +183,6 @@ Referência de implementação: `HomeView.vue` (seção "Últimos artistas") e
   `prefers-reduced-motion` inclusa). Sombra dura/deslocada segue proibida;
   sem `translateY` no hover (o transform inline dos cards é do motion-v —
   a animação da capa fica no `img`, que o motion-v não toca).
+  **Nada disso existe hoje:** em 2026-07-23 o "musical" deixou de ser um tipo de obra e virou **tema** opcional — a classe `.is-musical`, a sombra dourada e a animação de respiração foram removidas. O tema hoje é só um selo de texto no card. Mantido aqui como registro do que já foi.
 - Gradientes roxos/azuis, glassmorphism genérico, uppercase em dados.
 - Transições lineares ou instantâneas em elementos interativos.
