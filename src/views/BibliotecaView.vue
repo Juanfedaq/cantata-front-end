@@ -41,7 +41,7 @@ const error = ref('')
 const page = ref(1)
 const totalPages = ref(1)
 const total = ref(0)
-const q = ref('')
+const q = ref(String(route.query.busca || ''))
 // Filtro ACUMULATIVO (2026-07-22): várias categorias ao mesmo tempo (OR
 // entre elas — o pacote contém qualquer uma); "Musicais" entra na mesma
 // linha como se fosse categoria (restringe junto: categorias E musical).
@@ -51,7 +51,15 @@ const selectedCategories = ref<string[]>(
     .map((s) => s.trim())
     .filter(Boolean),
 )
-const selectedSubs = ref<number[]>([])
+const selectedSubs = ref<number[]>(parseSubs(route.query.sub))
+
+/** Lê `?sub=1,4,9` como lista de ids, descartando o que não for número. */
+function parseSubs(value: unknown): number[] {
+  return String(value || '')
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0)
+}
 
 // Ordenação (2026-07-22): dropdown "Ordenar por…" PERSONALIZADO na linha
 // dos chips (painel blocado, mesmo padrão do menu do usuário no header).
@@ -127,13 +135,30 @@ function pickTema(id: number | null) {
   temaOpen.value = false
 }
 
-/** Espelha os filtros compartilháveis (categorias/tema/ordem) na URL. */
+/**
+ * Espelha TODO o estado de filtro na URL — categorias, tema, ordem, busca e
+ * subcategorias.
+ *
+ * Busca e subcategorias entraram em 2026-08-05: antes ficavam só em memória,
+ * e isso tinha duas consequências. Uma busca não era compartilhável nem
+ * sobrevivia ao recarregar; e, pior, não havia como distinguir "o usuário
+ * voltou para a Biblioteca limpa" de "a própria tela acabou de sincronizar a
+ * URL" — as duas produziam a mesma URL vazia. Com o estado inteiro aqui, a
+ * URL passa a ser a fonte da verdade e a comparação abaixo fica sólida.
+ */
 function syncQuery() {
+  router.replace({ query: queryFromState() })
+}
+
+/** O que a URL DEVE ser para o estado atual da tela. */
+function queryFromState(): Record<string, string> {
   const query: Record<string, string> = {}
   if (selectedCategories.value.length) query.categoria = selectedCategories.value.join(',')
   if (selectedMusical.value) query.tema = String(selectedMusical.value)
   if (order.value) query.ordem = order.value
-  router.replace({ query })
+  if (q.value.trim()) query.busca = q.value.trim()
+  if (selectedSubs.value.length) query.sub = selectedSubs.value.join(',')
+  return query
 }
 
 function toggleCategory(slug: string) {
@@ -189,6 +214,26 @@ async function fetchItems() {
   }
 }
 
+// Retorno da busca (QA 2026-08-05): sem isto, pesquisar não dizia quantos
+// resultados vieram — a grade simplesmente mudava. `total` é o total da
+// CONSULTA (todas as páginas), não o da página atual, que é o que interessa
+// para quem acabou de pesquisar.
+const resultsLabel = computed(() => {
+  const n = total.value
+  const conteudos = `${n} ${n === 1 ? 'conteúdo encontrado' : 'conteúdos encontrados'}`
+  const termo = q.value.trim()
+  return termo ? `${conteudos} para “${termo}”` : conteudos
+})
+
+// Mensagem de vazio: com termo de busca, repete o termo — ajuda a perceber
+// o erro de digitação, que é a causa mais comum de zero resultado.
+const emptyLabel = computed(() => {
+  const termo = q.value.trim()
+  return termo
+    ? `Nenhum conteúdo encontrado para “${termo}”. Tente outra palavra ou revise os filtros.`
+    : 'Nenhum conteúdo encontrado com esses filtros.'
+})
+
 function toggleSub(id: number) {
   const idx = selectedSubs.value.indexOf(id)
   if (idx >= 0) selectedSubs.value.splice(idx, 1)
@@ -203,6 +248,36 @@ watch([selectedCategories, selectedSubs, q, selectedMusical, order], () => {
 }, { deep: true })
 
 watch(page, fetchItems)
+
+// Navegação EXTERNA para a Biblioteca — clicar em "Biblioteca" no header
+// estando já nela, no ícone de uma categoria da Home, ou usar o botão voltar
+// do navegador. O componente NÃO remonta nesses casos, e os filtros vivem em
+// refs lidas da URL só na criação: sem isto, a URL ficava limpa e a seleção
+// antiga continuava valendo na tela (QA 2026-08-05).
+watch(
+  () => route.query,
+  (query) => {
+    // Guarda contra laço: o syncQuery() também escreve na URL. Comparamos o
+    // que a URL DIZ com o que ela DEVERIA dizer para o estado atual — iguais
+    // significa que a mudança veio de nós, e não há nada a fazer.
+    const atual = queryFromState()
+    const chaves = new Set([...Object.keys(atual), ...Object.keys(query)])
+    const igual = [...chaves].every((k) => String(query[k] ?? '') === (atual[k] ?? ''))
+    if (igual) return
+
+    selectedCategories.value = String(query.categoria || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    selectedMusical.value =
+      Number.isInteger(Number(query.tema)) && Number(query.tema) > 0 ? Number(query.tema) : null
+    order.value = ORDER_OPTIONS.some((o) => o.value === query.ordem)
+      ? (String(query.ordem) as Order)
+      : ''
+    q.value = String(query.busca || '')
+    selectedSubs.value = parseSubs(query.sub)
+  },
+)
 
 onMounted(async () => {
   document.addEventListener('pointerdown', onDocPointerDown)
@@ -389,23 +464,29 @@ onBeforeUnmount(() => {
 
       <p v-if="loading" class="muted">Carregando…</p>
       <p v-else-if="error" class="error">{{ error }}</p>
-      <p v-else-if="!items.length" class="muted">Nenhum conteúdo encontrado com esses filtros.</p>
+      <p v-else-if="!items.length" class="muted">{{ emptyLabel }}</p>
 
-      <div v-else class="grid">
-        <MotionContentCard
-          v-for="(item, i) in items"
-          :key="item.id"
-          :id="item.id"
-          :title="item.title"
-          :price-cents="item.priceCents"
-          :cover-path="item.coverPath"
-          :categories="item.categories"
-          :musical="item.musical"
-          :artist-name="item.artist.name"
-          :layout="true"
-          v-bind="rise(i * 0.05, 18)"
-        />
-      </div>
+      <template v-else>
+        <!-- aria-live: quem usa leitor de tela ouve a contagem mudar sem
+             precisar varrer a grade de novo a cada busca. -->
+        <p class="results" aria-live="polite">{{ resultsLabel }}</p>
+
+        <div class="grid">
+          <MotionContentCard
+            v-for="(item, i) in items"
+            :key="item.id"
+            :id="item.id"
+            :title="item.title"
+            :price-cents="item.priceCents"
+            :cover-path="item.coverPath"
+            :categories="item.categories"
+            :musical="item.musical"
+            :artist-name="item.artist.name"
+            :layout="true"
+            v-bind="rise(i * 0.05, 18)"
+          />
+        </div>
+      </template>
 
       <!-- Paginação tradicional (decisão registrada no PROGRESS.md) -->
       <div v-if="totalPages > 1" class="pagination">
@@ -623,11 +704,24 @@ onBeforeUnmount(() => {
   margin-right: 1rem;
 }
 
+// Contagem do resultado, entre os filtros e a grade. É dado, não rótulo:
+// sem uppercase (guia §5).
+.results {
+  margin-top: 1.5rem;
+  color: $text-secondary;
+  font-size: 0.86rem;
+}
+
 .grid {
   margin-top: 1.5rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 1.25rem;
+}
+
+// Com a contagem acima, a grade não precisa repetir o afastamento.
+.results + .grid {
+  margin-top: 0.9rem;
 }
 
 .pagination {

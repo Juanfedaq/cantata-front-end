@@ -10,13 +10,13 @@ import { useOwnedStore } from '@/stores/owned'
 // Páscoa, …): quando existe, um selo discreto com o nome do tema aparece
 // sobre a capa. Sem tratamento "premium" (sombra/animação) — 2026-07-23.
 const props = defineProps<{
-  id: number
+  id: string
   title: string
   priceCents: number
   coverPath: string | null
   categories: CategoryRef[]
   musical?: Musical | null
-  artistId?: number
+  artistId?: string
   artistName?: string | null
 }>()
 

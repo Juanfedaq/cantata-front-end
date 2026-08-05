@@ -18,18 +18,15 @@ const userMenuEl = ref<HTMLElement | null>(null)
 const mobileOpen = ref(false)
 const mobileEl = ref<HTMLElement | null>(null)
 
-// Sair pede confirmação inline (dropdown e painel mobile): clicar em
-// "Sair" troca o item por "Sair da conta?" + Sair/Cancelar.
-const confirmingExit = ref(false)
-
+// "Sair" é imediato (QA 2026-08-05): antes pedia confirmação inline
+// ("Sair da conta?" + Sair/Cancelar). Sair é reversível — basta entrar de
+// novo — então a pergunta só somava um clique a uma ação sem consequência.
 function closeUserMenu() {
   userMenuOpen.value = false
-  confirmingExit.value = false
 }
 
 function closeMobile() {
   mobileOpen.value = false
-  confirmingExit.value = false
 }
 
 // Painel em tela cheia: trava o scroll da página enquanto está aberto
@@ -37,9 +34,9 @@ function closeMobile() {
 watch(mobileOpen, (open) => lockScroll(open))
 
 // Fecha ao clicar fora do dropdown/painel ou ao apertar Escape.
-// POINTERDOWN, não click: um clique num item que se re-renderiza (ex.:
-// "Sair" virando a confirmação) chega ao document com o alvo já fora do
-// DOM — `contains` falharia e o menu fecharia sozinho.
+// POINTERDOWN, não click: um clique num item que se re-renderiza chega ao
+// document com o alvo já fora do DOM — `contains` falharia e o menu
+// fecharia sozinho.
 function onDocPointerDown(e: PointerEvent) {
   const target = e.target as Node
   if (userMenuOpen.value && !userMenuEl.value?.contains(target)) closeUserMenu()
@@ -148,16 +145,7 @@ function logout() {
             -->
 
 
-            <template v-if="confirmingExit">
-              <p class="exit-question">Sair da conta?</p>
-              <button type="button" class="item-btn exit-yes" @click="logout">Sair</button>
-              <button type="button" class="item-btn" @click="confirmingExit = false">
-                Cancelar
-              </button>
-            </template>
-            <button v-else type="button" class="item-btn exit" @click="confirmingExit = true">
-              Sair
-            </button>
+            <button type="button" class="item-btn exit" @click="logout">Sair</button>
           </template>
           <template v-else>
             <RouterLink to="/login" @click="closeMobile">Entrar</RouterLink>
@@ -237,27 +225,7 @@ function logout() {
               </RouterLink>
               -->
 
-              <template v-if="confirmingExit">
-                <p class="exit-question" aria-live="polite">Sair da conta?</p>
-                <button type="button" class="item-btn exit-yes" role="menuitem" @click="logout">
-                  Sair
-                </button>
-                <button
-                  type="button"
-                  class="item-btn"
-                  role="menuitem"
-                  @click="confirmingExit = false"
-                >
-                  Cancelar
-                </button>
-              </template>
-              <button
-                v-else
-                type="button"
-                class="item-btn exit"
-                role="menuitem"
-                @click="confirmingExit = true"
-              >
+              <button type="button" class="item-btn exit" role="menuitem" @click="logout">
                 Sair
               </button>
             </div>
@@ -469,32 +437,6 @@ $line: rgba(var(--fg-rgb), 0.1);
       }
     }
 
-    // Confirmação inline do Sair: pergunta + Sair + Cancelar, cada um em
-    // sua LINHA (itens normais do menu — a largura do dropdown não muda).
-    .exit-question {
-      @include label-type;
-      font-size: 0.62rem;
-      color: $text-dim;
-      padding: 0.7rem 1.3rem 0.35rem;
-      border-top: 1px solid $line;
-      white-space: nowrap;
-    }
-
-    // A pergunta já desenha a linha de cima — o item seguinte não repete.
-    .exit-question + .item-btn {
-      border-top: none;
-    }
-
-    // Regras depois do seletor genérico dos itens: mesma especificidade,
-    // ordem no arquivo decide — o vermelho vence no estado normal e no hover.
-    &.dropdown > .exit-yes,
-    &.dropdown > .exit-yes:hover {
-      color: $color-error;
-    }
-
-    &.dropdown > .exit-yes:hover {
-      background: color-mix(in srgb, $color-error 14%, rgb(var(--bg-rgb)));
-    }
   }
 
   // "Criar conta": destaque em dourado SÓLIDO da marca com letra BRANCA.
@@ -539,12 +481,17 @@ $line: rgba(var(--fg-rgb), 0.1);
   padding: 2rem;
 }
 
+// `--consent-space` é publicada pelo CookieConsent enquanto o aviso estiver
+// na tela (ele é `position: fixed` e cobriria o fim da página). Vale 0 depois
+// do aceite — e para quem nunca vê o aviso, o `var(..., 0px)` cobre o caso.
 .footer {
   padding: 1.5rem 2rem;
+  padding-bottom: calc(1.5rem + var(--consent-space, 0px));
   border-top: 1px solid $line;
   color: rgba(var(--fg-rgb), 0.4);
   font-size: 0.85rem;
   text-align: center;
+  transition: padding-bottom 0.5s $ease-brand;
 }
 
 .footer-links {
@@ -680,18 +627,6 @@ $line: rgba(var(--fg-rgb), 0.1);
     border-top: none;
   }
 
-  .exit-question {
-    @include label-type;
-    font-size: 0.62rem;
-    color: $text-dim;
-    padding: 0.8rem 1.5rem 0.35rem;
-    border-top: 1px solid $line;
-  }
-
-  .exit-question + .item-btn {
-    border-top: none;
-  }
-
   // Mesmo jogo de especificidade do dropdown: regras depois do genérico.
   &.mobile-panel > .sell-cta,
   &.mobile-panel > .sell-cta:hover {
@@ -711,15 +646,6 @@ $line: rgba(var(--fg-rgb), 0.1);
     color: $color-white;
   }
 
-  &.mobile-panel > .exit-yes,
-  &.mobile-panel > .exit-yes:hover {
-    color: $color-error;
-  }
-
-  &.mobile-panel > .exit-yes:hover {
-    background: color-mix(in srgb, $color-error 14%, rgb(var(--bg-rgb)));
-  }
-
 }
 
 // Em telas menores: some o menu desktop (e o dropdown), entra o hambúrguer.
@@ -735,9 +661,10 @@ $line: rgba(var(--fg-rgb), 0.1);
   }
 
   // Respiro no fim da página (altura do header): o botão flutuante não
-  // fica na frente do conteúdo quando o scroll chega ao final.
+  // fica na frente do conteúdo quando o scroll chega ao final. No celular
+  // somam-se as duas coisas fixas — a barra inferior E o aviso de cookies.
   .footer {
-    padding-bottom: calc(1.5rem + 64px);
+    padding-bottom: calc(1.5rem + 64px + var(--consent-space, 0px));
   }
 }
 </style>

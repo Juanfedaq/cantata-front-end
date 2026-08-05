@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/auth'
  */
 export const useOwnedStore = defineStore('owned', () => {
   const auth = useAuthStore()
-  const ids = ref<Set<number>>(new Set())
+  const ids = ref<Set<string>>(new Set())
   let loaded = false
   let inFlight: Promise<void> | null = null
 
@@ -37,7 +37,7 @@ export const useOwnedStore = defineStore('owned', () => {
     return inFlight
   }
 
-  function owns(contentId: number) {
+  function owns(contentId: string) {
     return ids.value.has(contentId)
   }
 

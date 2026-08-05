@@ -208,8 +208,11 @@ onMounted(async () => {
   }
 }
 
+// O respiro entre as seções é o MESMO que o banner já dá abaixo de si
+// (o `padding-bottom: 4.5rem` do `.banner`) — antes eram 3rem aqui, e a
+// primeira quebra da página ficava mais folgada que todas as seguintes.
 .section {
-  margin-top: 3rem;
+  margin-top: 4.5rem;
 }
 
 .section-title {

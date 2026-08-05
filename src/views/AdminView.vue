@@ -24,7 +24,7 @@ const error = ref('')
 const modStatus = ref<ContentStatus>('em_revisao')
 const contents = ref<AdminContent[]>([])
 const loadingContents = ref(false)
-const rejectingId = ref<number | null>(null)
+const rejectingId = ref<string | null>(null)
 const rejectReason = ref('')
 
 async function loadContents() {
@@ -81,7 +81,7 @@ async function reject(c: AdminContent) {
 // ---- Bloqueio de obra publicada (takedown) ----
 // Só para obra APROVADA: tira do ar na hora (vitrine, link direto e novas
 // compras). Não desfaz venda nenhuma — quem comprou continua baixando.
-const blockingId = ref<number | null>(null)
+const blockingId = ref<string | null>(null)
 const blockReason = ref('')
 
 async function block(c: AdminContent) {

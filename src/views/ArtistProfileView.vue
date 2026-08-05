@@ -10,7 +10,7 @@ import { usePageSeo } from '@/composables/useSeo'
 const route = useRoute()
 
 const artist = ref<{
-  id: number
+  id: string
   name: string | null
   bio: string | null
   avatarPath: string | null

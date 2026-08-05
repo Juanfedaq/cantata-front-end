@@ -33,9 +33,10 @@ const router = useRouter()
 const auth = useAuthStore()
 
 // ?editar=<id> → edição/reenvio de uma obra existente (reabre a revisão).
+// O id é o PÚBLICO (UUID) desde 2026-08-05 — texto, não número.
 const editingId = computed(() => {
-  const id = Number(route.query.editar)
-  return Number.isInteger(id) && id > 0 ? id : null
+  const id = String(route.query.editar ?? '').trim()
+  return id || null
 })
 
 const categories = ref<Category[]>([])

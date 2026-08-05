@@ -80,9 +80,10 @@ onMounted(async () => {
 })
 
 // ---- Compartilhar ------------------------------------------------------------
-// Celular (e navegadores com Web Share API): painel NATIVO do sistema.
-// Desktop sem a API: mini painel blocado com redes + copiar link.
-const shareOpen = ref(false)
+// As redes ficam SEMPRE visíveis, ao lado do rótulo, logo abaixo do título
+// (2026-08-05, QA): antes o compartilhar era um botão dentro da caixa de
+// compra e só abria o painel ao clicar — escondia a ação e competia com o
+// "Comprar", que é o que a caixa existe para destacar.
 const copied = ref(false)
 
 const shareUrl = computed(() =>
@@ -107,16 +108,16 @@ const shareLinks = computed(() => {
   }
 })
 
-async function share() {
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: content.value?.title, text: shareText.value, url: shareUrl.value })
-    } catch {
-      // usuário fechou o painel nativo — nada a fazer
-    }
-    return
+// No celular vale usar o painel nativo (leva a lista de apps do aparelho);
+// onde ele não existe, as redes ao lado já dão conta.
+const hasNativeShare = computed(() => typeof navigator !== 'undefined' && !!navigator.share)
+
+async function shareNative() {
+  try {
+    await navigator.share({ title: content.value?.title, text: shareText.value, url: shareUrl.value })
+  } catch {
+    // usuário fechou o painel nativo — nada a fazer
   }
-  shareOpen.value = !shareOpen.value
 }
 
 async function copyLink() {
@@ -163,7 +164,7 @@ async function buy() {
 
         <!-- Preview limitado (spec §5.4) — os arquivos completos só após a
              compra. Uma prévia por item do pacote. -->
-        <div v-for="item in content.items" :key="item.id" class="preview">
+        <div v-for="item in content.items" :key="item.category.slug" class="preview">
           <h3 class="preview-title">Prévia — {{ item.category.name }}</h3>
           <audio v-if="previewExt(item.previewPath) === 'mp3'" controls :src="fileUrl(item.previewPath) ?? undefined" />
           <video v-else-if="previewExt(item.previewPath) === 'mp4'" controls :src="fileUrl(item.previewPath) ?? undefined" />
@@ -180,6 +181,23 @@ async function buy() {
         <RouterLink :to="`/artistas/${content.artist.id}`" class="artist">
           por {{ content.artist.name || 'Artista' }}
         </RouterLink>
+
+        <!-- Compartilhar logo abaixo do título: rótulo + redes na mesma linha,
+             sempre visíveis (2026-08-05, QA). -->
+        <div class="share">
+          <span class="share-label">Compartilhar</span>
+          <div class="share-links">
+            <a class="share-item" :href="shareLinks.whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+            <a class="share-item" :href="shareLinks.facebook" target="_blank" rel="noopener">Facebook</a>
+            <a class="share-item" :href="shareLinks.x" target="_blank" rel="noopener">X</a>
+            <button type="button" class="share-item" :class="{ copied }" @click="copyLink">
+              {{ copied ? 'Link copiado!' : 'Copiar link' }}
+            </button>
+            <button v-if="hasNativeShare" type="button" class="share-item" @click="shareNative">
+              Mais…
+            </button>
+          </div>
+        </div>
 
         <p v-if="content.description" class="description">{{ content.description }}</p>
 
@@ -216,17 +234,6 @@ async function buy() {
           </template>
           <p v-if="buyError" class="error small">{{ buyError }}</p>
 
-          <!-- Compartilhar: nativo no celular; painel blocado no desktop -->
-          <button class="share-btn" @click="share">Compartilhar</button>
-          <div v-if="shareOpen" class="share-panel">
-            <a class="share-item" :href="shareLinks.whatsapp" target="_blank" rel="noopener">WhatsApp</a>
-            <a class="share-item" :href="shareLinks.facebook" target="_blank" rel="noopener">Facebook</a>
-            <a class="share-item" :href="shareLinks.x" target="_blank" rel="noopener">X</a>
-            <button class="share-item" :class="{ copied }" @click="copyLink">
-              {{ copied ? 'Link copiado!' : 'Copiar link' }}
-            </button>
-          </div>
-
           <p v-if="!isPurchased && !isOwn" class="muted small">
             Após a compra, o download fica disponível para sempre em "Minhas Compras".
           </p>
@@ -237,20 +244,29 @@ async function buy() {
 </template>
 
 <style scoped lang="scss">
+// Respiro maior em toda a página (2026-08-05, QA): as duas colunas se
+// afastam, e no celular — onde uma cai sob a outra — o vão precisa ser bem
+// maior, senão a prévia encosta no título.
 .detail {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2.5rem;
+  gap: 3.5rem;
 
   @media (max-width: 800px) {
     grid-template-columns: 1fr;
+    gap: 3rem;
   }
 }
 
 // Imagens não levam borda nem radius (guia §3.6).
 .cover {
   width: 100%;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+// Uma prévia por categoria do pacote — elas se empilham e precisam de vão.
+.preview + .preview {
+  margin-top: 2.5rem;
 }
 
 .preview-title {
@@ -292,18 +308,48 @@ async function buy() {
   margin: 0.4rem 0;
 }
 
+// Sublinhado permanente (2026-08-05, QA): sem ele não se percebia que "por
+// Fulano" leva à página do artista. O deslocamento afasta o traço das
+// descidas das letras; a espessura fica discreta até o hover.
 .artist {
   color: rgba(var(--fg-rgb), 0.7);
-  text-decoration: none;
-  transition: color 0.5s $ease-brand;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+  text-decoration-color: rgba(var(--fg-rgb), 0.35);
+  transition:
+    color 0.5s $ease-brand,
+    text-decoration-color 0.5s $ease-brand;
 
   &:hover {
     color: $gold-text;
+    text-decoration-color: currentColor;
   }
 }
 
-.description {
+// Compartilhar: rótulo + redes na mesma linha, abaixo do título.
+.share {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-top: 1.25rem;
+}
+
+.share-label {
+  @include label-type;
+  font-size: 0.72rem;
+  color: $text-secondary;
+}
+
+// Grupo blocado colado (guia §3): bordas de 1px sobrepostas pela margem.
+.share-links {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.description {
+  margin-top: 2rem;
   color: rgba(var(--fg-rgb), 0.75);
   white-space: pre-line;
 }
@@ -311,7 +357,7 @@ async function buy() {
 // "Este produto contém": título de rótulo + lista com o ícone de cada
 // categoria (na tinta dela, como nos cards) + a contagem de arquivos.
 .includes {
-  margin-top: 1.5rem;
+  margin-top: 2.5rem;
 }
 
 .includes-title {
@@ -349,7 +395,7 @@ async function buy() {
 
 // Tags como grupo blocado colado (guia §3): sem pílulas, bordas sobrepostas.
 .tags {
-  margin-top: 1.25rem;
+  margin-top: 2rem;
   display: flex;
   flex-wrap: wrap;
 }
@@ -365,7 +411,7 @@ async function buy() {
 
 // Bloco solto na página: moldura completa de 1px (guia §3.4).
 .buy-box {
-  margin-top: 2rem;
+  margin-top: 2.75rem;
   padding: 1.75rem;
   border: 1px solid $line;
 }
@@ -389,23 +435,10 @@ async function buy() {
   width: 100%;
 }
 
-// Compartilhar: botão secundário blocado sob o Comprar.
-.share-btn {
-  @include block-button;
-  width: 100%;
-  margin-top: 0.75rem;
-}
-
-// Mini painel de redes: grupo blocado colado (guia §3), itens lado a lado.
-.share-panel {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 0.75rem;
-}
-
+// Cada rede é um chip do grupo blocado — sem `flex: 1` (elas não ocupam mais
+// a largura da caixa de compra; agora convivem com o rótulo numa linha).
 .share-item {
   @include block-chip;
-  flex: 1;
   text-align: center;
   text-decoration: none;
   font-size: 0.68rem;

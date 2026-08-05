@@ -60,8 +60,8 @@ async function startOnboarding() {
 // ---- Confirmação DENTRO do card (sem confirm() do navegador) ----
 // Excluir (rascunho/reprovado) e ocultar (publicada) confirmam no card;
 // REEXIBIR é imediato — voltar à vitrine não tem consequência.
-const confirming = ref<{ id: number; action: 'excluir' | 'ocultar' } | null>(null)
-const busyId = ref<number | null>(null)
+const confirming = ref<{ id: string; action: 'excluir' | 'ocultar' } | null>(null)
+const busyId = ref<string | null>(null)
 
 async function remove(content: MyContent) {
   busyId.value = content.id

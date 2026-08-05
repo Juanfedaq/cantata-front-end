@@ -26,21 +26,42 @@ onMounted(async () => {
   }
 })
 
-// Um download por ARQUIVO do pacote (2026-07-16: N arquivos por categoria).
-const downloadingFile = ref<number | null>(null)
-
-async function download(p: Purchase, file: { id: number; fileName: string | null }) {
+/**
+ * UM botão por compra (2026-08-05, QA). Antes era um botão por ARQUIVO do
+ * pacote: quem comprava partitura + áudio + cifra clicava cinco vezes.
+ *
+ * O rótulo é só "Baixar": a contagem de arquivos já aparece ao lado de cada
+ * categoria, logo acima, e o formato da entrega (arquivo direto ou ZIP) é
+ * detalhe de implementação — não é decisão de quem clica.
+ *
+ * Pacote com um arquivo só baixa o arquivo direto; embrulhar um único PDF num
+ * ZIP obrigaria a pessoa a descompactar sem motivo.
+ */
+async function download(p: Purchase) {
   downloadingId.value = p.id
-  downloadingFile.value = file.id
   error.value = ''
   try {
-    await purchasesApi.download(p.content.id, file.id, file.fileName)
+    const arquivos = p.content.items.flatMap((i) => i.files)
+    const unico = arquivos.length === 1 ? arquivos[0] : null
+    if (unico) {
+      await purchasesApi.download(p.content.id, unico.id, unico.fileName)
+    } else {
+      await purchasesApi.downloadAll(p.content.id)
+    }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao baixar o arquivo.'
+    error.value = err instanceof Error ? err.message : 'Erro ao baixar o conteúdo.'
   } finally {
     downloadingId.value = null
-    downloadingFile.value = null
   }
+}
+
+/** Data da compra por extenso — "4 de agosto de 2026". */
+function purchaseDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 </script>
 
@@ -68,39 +89,42 @@ async function download(p: Purchase, file: { id: number; fileName: string | null
 
         <div class="meta">
           <RouterLink :to="`/conteudo/${p.content.id}`" class="title">{{ p.content.title }}</RouterLink>
-          <p class="sub">
-            {{ p.content.items.map((i) => i.category.name).join(' · ') }} ·
-            {{ p.content.artist.name || 'Artista' }} ·
-            {{ new Date(p.purchasedAt).toLocaleDateString('pt-BR') }} · {{ formatPrice(p.amountCents) }}
+          <!-- Duas linhas (QA 2026-08-05): a data existia, mas era o terceiro
+               item de uma fila de quatro separados por "·" e passava
+               despercebida. Agora o QUE foi comprado fica em cima e o
+               COMPROVANTE — quando e por quanto — em baixo, com rótulo. -->
+          <p class="sub">{{ p.content.artist.name || 'Artista' }}</p>
+
+          <!-- Uma categoria por linha, na cor dela, com a contagem de
+               arquivos ao lado (2026-08-05, QA). Antes era uma fila
+               "Partituras · Músicas · Cifras" em texto apagado: não dava para
+               ver o que o pacote traz de cada tipo, e a contagem só existia
+               nos botões de download, que agora são um só. -->
+          <ul class="cats">
+            <li v-for="item in p.content.items" :key="item.id" class="cat-row">
+              <span class="category" :class="item.category.slug">{{ item.category.name }}</span>
+              <span class="cat-count">
+                {{ item.files.length }} {{ item.files.length === 1 ? 'arquivo' : 'arquivos' }}
+              </span>
+            </li>
+          </ul>
+          <p class="sub receipt">
+            Comprado em
+            <time :datetime="p.purchasedAt">{{ purchaseDate(p.purchasedAt) }}</time>
+            · {{ formatPrice(p.amountCents) }}
           </p>
           <p v-if="p.status === 'pendente'" class="pending-badge">
             Aguardando confirmação do pagamento (Pix/boleto podem levar alguns minutos)
           </p>
         </div>
 
-        <!-- Download não expira (spec §8); um botão por ARQUIVO, agrupado
-             por categoria do pacote. Só aparece com pagamento confirmado —
-             enquanto 'pendente' (Pix/boleto), o download ainda é negado
-             pela API mesmo que o botão aparecesse (2026-07-20). -->
+        <!-- Download não expira (spec §8). Só aparece com pagamento
+             confirmado — enquanto 'pendente' (Pix/boleto), a API nega o
+             download mesmo que o botão aparecesse (2026-07-20). -->
         <div v-if="p.status === 'pago'" class="dl-group">
-          <template v-for="item in p.content.items" :key="item.id">
-            <button
-              v-for="(file, fi) in item.files"
-              :key="file.id"
-              class="dl-btn"
-              :disabled="downloadingId === p.id"
-              :title="file.fileName ?? undefined"
-              @click="download(p, file)"
-            >
-              {{ downloadingId === p.id && downloadingFile === file.id
-                ? 'Baixando…'
-                : item.files.length > 1
-                  ? `${item.category.name} ${fi + 1}`
-                  : p.content.items.length > 1
-                    ? `Baixar ${item.category.name}`
-                    : 'Baixar' }}
-            </button>
-          </template>
+          <button class="dl-btn" :disabled="downloadingId === p.id" @click="download(p)">
+            {{ downloadingId === p.id ? 'Baixando…' : 'Baixar' }}
+          </button>
         </div>
       </li>
     </ul>
@@ -168,15 +192,56 @@ async function download(p: Purchase, file: { id: number; fileName: string | null
   color: rgba(var(--fg-rgb), 0.55);
 }
 
+// Linha do comprovante (quando e por quanto): um tom acima da anterior — é
+// a informação procurada por quem volta a esta página meses depois.
+.receipt {
+  color: rgba(var(--fg-rgb), 0.72);
+}
+
+// Lista das categorias do pacote, uma por linha.
+.cats {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+// Mesma etiqueta colorida da vitrine e da página da obra (mixin global):
+// a cor vem do slug da categoria, então o reconhecimento é o mesmo em
+// todas as telas.
+.category {
+  @include category-tag;
+}
+
+.cat-count {
+  font-size: 0.74rem;
+  color: rgba(var(--fg-rgb), 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
 .pending-badge {
   margin-top: 0.35rem;
   font-size: 0.78rem;
   color: $gold-text;
 }
 
+// Um botão só (antes era um por arquivo, e a coluna virava uma pilha).
+.dl-group {
+  flex-shrink: 0;
+}
+
 .dl-btn {
   @include block-button-primary;
   padding: 0.6rem 1.4rem;
+  white-space: nowrap;
 }
 
 .muted {

@@ -2,7 +2,7 @@
 // Meu Perfil: foto de perfil (trocar/remover) e biografia pública do artista.
 // Para quem ainda não é artista, mostra o convite "Torne-se um artista"
 // (fluxo que morava no dashboard, aposentado em favor do dropdown do header).
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
@@ -30,25 +30,6 @@ async function upgrade() {
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Erro ao fazer o upgrade.'
     upgrading.value = false
-  }
-}
-
-// ---- Sair de todos os dispositivos ----
-// O logout normal só apaga o token deste navegador; o JWT segue válido no
-// servidor até expirar. Esta ação incrementa o token_version e derruba TODAS
-// as sessões — inclusive esta, por isso manda para o login em seguida.
-const loggingOutAll = ref(false)
-
-async function logoutAll() {
-  loggingOutAll.value = true
-  error.value = ''
-  try {
-    await authApi.logoutAll()
-    auth.logout()
-    router.push('/login')
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao encerrar as sessões.'
-    loggingOutAll.value = false
   }
 }
 
@@ -120,13 +101,41 @@ async function removeAvatar() {
   }
 }
 
+// ---- Nome ----
+// Vale para TODA conta, não só artista: comprador também erra ao digitar, e
+// quem entra pelo Google recebe o nome que o Google mandar. Até 2026-08-05 não
+// havia como corrigir — nenhuma rota atualizava o nome.
+const name = ref('')
+const nameSaving = ref(false)
+
+// Só habilita o botão quando há mudança de verdade, para "Salvar" não parecer
+// quebrado ao ser clicado sem efeito nenhum.
+const nameChanged = computed(() => name.value.trim() !== (auth.user?.name ?? '').trim())
+
+async function saveName() {
+  nameSaving.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    const { user } = await authApi.updateName(name.value.trim())
+    auth.setUser(user)
+    name.value = user.name ?? ''
+    success.value = 'Nome atualizado.'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Erro ao salvar o nome.'
+  } finally {
+    nameSaving.value = false
+  }
+}
+
 // ---- Biografia ----
 const bio = ref('')
 const bioSaving = ref(false)
 
 onMounted(async () => {
-  // Garante a bio mais recente (o /me devolve bio e avatarPath).
+  // Garante nome, bio e foto mais recentes (todos vêm do /me).
   await auth.refresh().catch(() => {})
+  name.value = auth.user?.name ?? ''
   bio.value = auth.user?.bio ?? ''
 })
 
@@ -169,6 +178,29 @@ async function saveBio() {
       <button class="save-btn" :disabled="upgrading" @click="upgrade">
         {{ upgrading ? 'Ativando…' : 'Quero vender meus conteúdos' }}
       </button>
+    </section>
+
+    <!-- Nome: primeira seção porque é o que aparece em todo lugar (header,
+         vitrine, perfil público) e vale para qualquer conta. -->
+    <section class="group">
+      <h2 class="group-label">Nome</h2>
+      <input
+        v-model="name"
+        type="text"
+        class="name-input"
+        maxlength="120"
+        autocomplete="name"
+        placeholder="Seu nome"
+        @keyup.enter="nameChanged && !nameSaving && saveName()"
+      />
+      <div class="group-foot">
+        <span class="hint">
+          {{ auth.isArtist ? 'É o nome que aparece nas suas obras.' : 'Aparece no seu recibo de compra.' }}
+        </span>
+        <button class="save-btn" :disabled="nameSaving || !nameChanged" @click="saveName">
+          {{ nameSaving ? 'Salvando…' : 'Salvar nome' }}
+        </button>
+      </div>
     </section>
 
     <!-- Foto de perfil -->
@@ -220,18 +252,6 @@ async function saveBio() {
           {{ bioSaving ? 'Salvando…' : 'Salvar biografia' }}
         </button>
       </div>
-    </section>
-
-    <section class="group">
-      <h2 class="group-label">Segurança</h2>
-      <p class="danger-text">
-        Encerra a sessão em <strong>todos os aparelhos</strong>, inclusive neste.
-        Útil se você perdeu o celular ou esqueceu a conta aberta em outro
-        computador — sair pelo menu fecha só este navegador.
-      </p>
-      <button class="cancel-btn" :disabled="loggingOutAll" @click="logoutAll">
-        {{ loggingOutAll ? 'Encerrando…' : 'Sair de todos os dispositivos' }}
-      </button>
     </section>
 
     <!-- Exclusão de conta: por último e visualmente separado, para não
@@ -423,11 +443,22 @@ async function saveBio() {
   display: none;
 }
 
+.name-input {
+  @include block-input;
+  width: 100%;
+}
+
 .bio-input {
   @include block-input;
   width: 100%;
   resize: vertical;
   line-height: 1.6;
+}
+
+// Botão desabilitado (nada mudou no campo): apagado, sem parecer clicável.
+.save-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .group-foot {

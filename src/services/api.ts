@@ -1,78 +1,78 @@
 // Cliente HTTP mínimo em torno do fetch, centralizando a URL base,
 // o cabeçalho de autenticação e o tratamento de erros da API.
-import { safeStorage } from '@/utils/safeStorage'
+import { safeStorage } from "@/utils/safeStorage";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-const TOKEN_KEY = 'cantata_token'
+const TOKEN_KEY = "cantata_token";
 
 export function getToken(): string | null {
-  return safeStorage.getItem(TOKEN_KEY)
+  return safeStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
-  safeStorage.setItem(TOKEN_KEY, token)
+  safeStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
-  safeStorage.removeItem(TOKEN_KEY)
+  safeStorage.removeItem(TOKEN_KEY);
 }
 
 /** URL pública de um preview/capa salvo pelo backend (ex.: "covers/abc.png"). */
 export function fileUrl(path: string | null | undefined): string | null {
-  return path ? `${BASE_URL}/files/${path}` : null
+  return path ? `${BASE_URL}/files/${path}` : null;
 }
 
 // Chamado quando uma requisição autenticada recebe 401 (sessão inválida
 // ou expirada). O store de auth registra o logout aqui — evita import
 // circular entre api.ts e o store.
-let onUnauthorized: (() => void) | null = null
+let onUnauthorized: (() => void) | null = null;
 export function setOnUnauthorized(handler: () => void): void {
-  onUnauthorized = handler
+  onUnauthorized = handler;
 }
 
 /** Erro de API com a mensagem já pronta para exibir ao usuário. */
 export class ApiError extends Error {
-  status: number
-  code?: string
+  status: number;
+  code?: string;
   constructor(message: string, status: number, code?: string) {
-    super(message)
-    this.status = status
-    this.code = code
+    super(message);
+    this.status = status;
+    this.code = code;
   }
 }
 
 interface RequestOptions {
-  method?: string
-  body?: unknown
-  auth?: boolean
+  method?: string;
+  body?: unknown;
+  auth?: boolean;
 }
 
 export async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = false } = options
+  const { method = "GET", body, auth = false } = options;
 
   // FormData (upload de arquivos) vai como multipart — o browser define o
   // Content-Type com o boundary; JSON é serializado manualmente.
-  const isForm = body instanceof FormData
-  const headers: Record<string, string> = {}
-  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
+  const isForm = body instanceof FormData;
+  const headers: Record<string, string> = {};
+  if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (auth) {
-    const token = getToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  let res: Response
+  let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
       body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
-    })
+    });
   } catch {
-    throw new ApiError('Não foi possível conectar ao servidor. Tente novamente.', 0)
+    throw new ApiError("Não foi possível conectar ao servidor. Tente novamente.", 0);
   }
 
-  const data = await res.json().catch(() => ({}))
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
     // Sessão inválida/expirada numa chamada autenticada: derruba a sessão
@@ -84,40 +84,53 @@ export async function request<T = unknown>(path: string, options: RequestOptions
     // pré-condição não atendida — responde **403**. Um 401 nesses casos
     // desloga o usuário aqui, silenciosamente, em vez de mostrar o erro.
     if (res.status === 401 && auth) {
-      onUnauthorized?.()
+      onUnauthorized?.();
     }
-    throw new ApiError(data.error ?? 'Ocorreu um erro inesperado.', res.status, data.code)
+    throw new ApiError(data.error ?? "Ocorreu um erro inesperado.", res.status, data.code);
   }
 
-  return data as T
+  return data as T;
 }
 
 // ---- Endpoints de autenticação --------------------------------------------
 
+/**
+ * Usuário da sessão. Formato ÚNICO: `/auth/login`, `/auth/google` e `/me`
+ * devolvem exatamente estes campos (backend: `src/users.js`).
+ *
+ * Nenhum é opcional de propósito — antes o login mandava 4 campos e o `/me`
+ * mandava 9, e os opcionais escondiam essa diferença no tipo. Se um dia
+ * voltarem a divergir, o TypeScript reclama em vez de deixar `undefined`
+ * circular.
+ *
+ * Fora daqui, por decisão de 2026-08-05: `emailVerified` (sempre `true` para
+ * quem tem sessão) e `stripeOnboardingComplete` (a fonte é
+ * `GET /artists/stripe/status`, que consulta o Stripe na hora).
+ */
 export interface AuthUser {
-  id: number
-  name: string | null
-  email: string
-  emailVerified: boolean
-  isAdmin?: boolean
-  isArtist?: boolean
-  bio?: string | null
-  avatarPath?: string | null
-  stripeOnboardingComplete?: boolean
+  /** Identificador PÚBLICO (UUID) — o inteiro do banco não sai da API. */
+  id: string;
+  name: string | null;
+  email: string;
+  isAdmin: boolean;
+  isArtist: boolean;
+  bio: string | null;
+  avatarPath: string | null;
 }
 
 export const authApi = {
-  register: (payload: { name?: string; email: string; password: string }) =>
-    request<{ message: string }>('/auth/register', { method: 'POST', body: payload }),
+  // `name` é obrigatório desde 2026-08-05 (o backend recusa sem ele).
+  register: (payload: { name: string; email: string; password: string }) =>
+    request<{ message: string }>("/auth/register", { method: "POST", body: payload }),
 
   login: (payload: { email: string; password: string }) =>
-    request<{ token: string; user: AuthUser }>('/auth/login', { method: 'POST', body: payload }),
+    request<{ token: string; user: AuthUser }>("/auth/login", { method: "POST", body: payload }),
 
   // `credential` é o ID token que o Google Identity Services devolve no
   // frontend — o backend confere a assinatura e resolve/cria a conta.
   googleLogin: (credential: string) =>
-    request<{ token: string; user: AuthUser }>('/auth/google', {
-      method: 'POST',
+    request<{ token: string; user: AuthUser }>("/auth/google", {
+      method: "POST",
       body: { credential },
     }),
 
@@ -125,159 +138,199 @@ export const authApi = {
     request<{ message: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`),
 
   resendVerification: (email: string) =>
-    request<{ message: string }>('/auth/resend-verification', { method: 'POST', body: { email } }),
+    request<{ message: string }>("/auth/resend-verification", { method: "POST", body: { email } }),
 
   forgotPassword: (email: string) =>
-    request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
+    request<{ message: string }>("/auth/forgot-password", { method: "POST", body: { email } }),
 
   resetPassword: (payload: { token: string; password: string }) =>
-    request<{ message: string }>('/auth/reset-password', { method: 'POST', body: payload }),
+    request<{ message: string }>("/auth/reset-password", { method: "POST", body: payload }),
 
-  // Encerra TODAS as sessões da conta (incrementa o token_version no
-  // servidor). O logout comum só apaga o token local — este serve para
-  // aparelho perdido ou conta esquecida aberta em outro computador.
-  logoutAll: () => request<{ message: string }>('/auth/logout-all', { method: 'POST', auth: true }),
+  // Encerra TODAS as sessões da conta (incrementa o token_version no servidor).
+  //
+  // SEM TELA desde 2026-08-05 (QA): o botão "Sair de todos os dispositivos"
+  // saiu do perfil porque a plataforma não mostra QUAIS aparelhos estão
+  // conectados — a pessoa era convidada a encerrar uma lista que não podia
+  // ver. A rota continua existindo e é o caminho do suporte para derrubar as
+  // sessões de uma conta comprometida. Quem quiser fazer isso sozinho troca a
+  // senha: o reset também incrementa o token_version e tem o mesmo efeito.
+  logoutAll: () => request<{ message: string }>("/auth/logout-all", { method: "POST", auth: true }),
 
   // Exclusão de conta pelo titular (LGPD). Anonimiza os dados pessoais; o
   // histórico de compras é mantido por obrigação fiscal. Confirmação: senha,
   // ou o próprio e-mail quando a conta é só-Google (não tem senha).
   deleteAccount: (payload: { password?: string; confirmEmail?: string }) =>
-    request<{ message: string }>('/auth/account', {
-      method: 'DELETE',
+    request<{ message: string }>("/auth/account", {
+      method: "DELETE",
       body: payload,
       auth: true,
     }),
 
-  me: () => request<{ user: AuthUser }>('/me', { auth: true }),
-}
+  me: () => request<{ user: AuthUser }>("/me", { auth: true }),
+
+  // Troca o nome da própria conta. Vale para qualquer usuário — não é do
+  // perfil de artista, é da pessoa. Devolve o usuário já atualizado, no mesmo
+  // formato do login, para o store aplicar sem uma segunda chamada.
+  updateName: (name: string) =>
+    request<{ user: AuthUser }>("/me", { method: "PUT", body: { name }, auth: true }),
+};
 
 // ---- Tipos do domínio -------------------------------------------------------
 
 export interface Category {
-  id: number
-  slug: string
-  name: string
+  id: number;
+  slug: string;
+  name: string;
 }
 
-export type SubcategoryType = 'instrumento' | 'genero' | 'dificuldade'
+export type SubcategoryType = "instrumento" | "genero" | "dificuldade";
 
 export interface Subcategory {
-  id: number
-  type: SubcategoryType
-  name: string
+  id: number;
+  type: SubcategoryType;
+  name: string;
 }
 
 // Musical (2026-07-22): classificação ACIMA das categorias — uma por data
 // especial do ano (Natal, Dia das Mães, …), administrável pelo admin.
 // Obra sem musical = "conteúdo padrão".
 export interface Musical {
-  id: number
-  name: string
+  id: number;
+  name: string;
 }
 
 // Referência de categoria usada nas tags das obras (pacotes).
 export interface CategoryRef {
-  id?: number
-  slug: string
-  name: string
+  id?: number;
+  slug: string;
+  name: string;
 }
 
-// Um arquivo completo (privado) de uma categoria do pacote — o que o
-// comprador baixa. Várias por categoria (2026-07-16).
+/**
+ * Arquivo de uma categoria do pacote, como vem nas respostas PÚBLICAS
+ * (catálogo). Sem `id`: desde 2026-08-05 o backend não expõe o id de
+ * `content_files` em rota pública — ele é sequencial e entregaria o volume de
+ * arquivos da plataforma. O site só usa a contagem e o nome aqui.
+ */
 export interface ContentFile {
-  id: number
-  fileName: string | null
-  fileSize?: number | null
+  fileName: string | null;
+  fileSize?: number | null;
+}
+
+/**
+ * O mesmo arquivo nas respostas AUTENTICADAS — "Minhas Compras", "Meus
+ * Conteúdos" e a fila de moderação. Aí o id vem: é ele que diz qual arquivo
+ * baixar, e qual remover ao editar a obra.
+ *
+ * Continua sendo o id INTEIRO de `content_files`. Ele não aparece em URL de
+ * navegador e só é entregue a quem já tem acesso àquela obra — comprador,
+ * autor ou admin.
+ */
+export interface PurchasedFile extends ContentFile {
+  id: number;
+}
+
+/** Item de pacote nas respostas autenticadas: arquivos com id. */
+export interface OwnedContentItem {
+  id: number;
+  category: CategoryRef;
+  previewPath: string;
+  files: PurchasedFile[];
 }
 
 // Item de um pacote: uma categoria preenchida da obra, com a própria
-// prévia pública e a lista de arquivos completos.
+// prévia pública e a lista de arquivos completos. Sem `id` pelo mesmo motivo
+// do ContentFile — a categoria já identifica o item dentro da obra.
 export interface ContentItem {
-  id: number
-  category: CategoryRef
-  previewPath: string
-  files: ContentFile[]
+  category: CategoryRef;
+  previewPath: string;
+  files: ContentFile[];
 }
 
 export interface CatalogItem {
-  id: number
-  title: string
-  priceCents: number
-  coverPath: string | null
-  publishedAt: string | null
-  musical: Musical | null
-  categories: CategoryRef[]
-  artist: { id: number; name: string | null }
+  /** Identificador PÚBLICO (UUID). Ver `cantata-back-end/src/publicId.js`. */
+  id: string;
+  title: string;
+  priceCents: number;
+  coverPath: string | null;
+  publishedAt: string | null;
+  musical: Musical | null;
+  categories: CategoryRef[];
+  artist: { id: string; name: string | null };
 }
 
 export interface CatalogDetail {
-  id: number
-  title: string
-  description: string | null
-  priceCents: number
-  coverPath: string | null
-  publishedAt: string | null
-  musical: Musical | null
-  items: ContentItem[]
-  categories: CategoryRef[]
-  artist: { id: number; name: string | null; bio: string | null }
-  subcategories: Subcategory[]
-  purchasable: boolean
+  id: string;
+  title: string;
+  description: string | null;
+  priceCents: number;
+  coverPath: string | null;
+  publishedAt: string | null;
+  musical: Musical | null;
+  items: ContentItem[];
+  categories: CategoryRef[];
+  artist: { id: string; name: string | null; bio: string | null };
+  subcategories: Subcategory[];
+  purchasable: boolean;
 }
 
-export type ContentStatus = 'rascunho' | 'em_revisao' | 'aprovado' | 'reprovado'
+export type ContentStatus = "rascunho" | "em_revisao" | "aprovado" | "reprovado";
 
 export interface MyContent {
-  id: number
-  title: string
-  description: string | null
-  priceCents: number
-  status: ContentStatus
+  id: string;
+  title: string;
+  description: string | null;
+  priceCents: number;
+  status: ContentStatus;
   /** Oculta das vitrines públicas (compradores mantêm acesso). */
-  hidden: boolean
+  hidden: boolean;
   /**
    * Bloqueada pelo ADMIN (takedown). Diferente do `hidden`: o artista não
    * reverte, some também do link direto e ninguém mais compra. Quem já
    * comprou continua baixando.
    */
-  adminBlocked: boolean
-  adminBlockedReason: string | null
-  rejectionReason: string | null
-  coverPath: string | null
-  publishedAt: string | null
-  createdAt: string
-  updatedAt: string
+  adminBlocked: boolean;
+  adminBlockedReason: string | null;
+  rejectionReason: string | null;
+  coverPath: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
   /** Compras pagas desta obra. */
-  salesCount: number
+  salesCount: number;
   /** Líquido acumulado do artista (centavos, valores congelados na venda). */
-  salesNetCents: number
-  musical: Musical | null
-  items: ContentItem[]
-  categories: CategoryRef[]
+  salesNetCents: number;
+  musical: Musical | null;
+  items: OwnedContentItem[];
+  categories: CategoryRef[];
 }
 
 export interface ArtistSummary {
-  id: number
-  name: string | null
-  bio: string | null
-  avatarPath: string | null
-  publishedCount: number
+  id: string;
+  name: string | null;
+  bio: string | null;
+  avatarPath: string | null;
+  publishedCount: number;
 }
 
 export interface Purchase {
-  id: number
-  amountCents: number
-  purchasedAt: string
+  /** Id da COMPRA — interno, e não aparece em URL nenhuma. */
+  id: number;
+  amountCents: number;
+  purchasedAt: string;
   // 'pendente' = aguardando confirmação (Pix/boleto podem levar minutos);
   // download só libera com 'pago' (2026-07-20, suporte a Pix).
-  status: 'pago' | 'pendente'
+  status: "pago" | "pendente";
   content: {
-    id: number
-    title: string
-    coverPath: string | null
-    items: { id: number; category: CategoryRef; files: ContentFile[] }[]
-    artist: { id: number; name: string | null }
-  }
+    /** Identificador PÚBLICO da obra (UUID). */
+    id: string;
+    title: string;
+    coverPath: string | null;
+    // Aqui os arquivos TÊM id: esta rota é autenticada e é o id que diz qual
+    // arquivo baixar.
+    items: OwnedContentItem[];
+    artist: { id: string; name: string | null };
+  };
 }
 
 // ---- Catálogo / categorias / artistas (públicos) ------------------------------
@@ -285,98 +338,102 @@ export interface Purchase {
 export const catalogApi = {
   categories: () =>
     request<{ categories: Category[]; subcategories: Subcategory[]; musicals: Musical[] }>(
-      '/categories',
+      "/categories",
     ),
 
-  list: (params: {
-    page?: number
-    perPage?: number
-    // Um slug ou vários separados por vírgula (filtro acumulativo — OR).
-    category?: string
-    subcategories?: number[]
-    q?: string
-    // `musical` (id) = TEMA opcional da obra (Natal, Páscoa, …) — filtra
-    // pela etiqueta escolhida (campo/coluna mantêm o nome interno "musical").
-    musical?: number
-    // Ordenação (whitelist do backend); ausente = mais recentes.
-    order?: 'recentes' | 'titulo-az' | 'titulo-za' | 'preco-desc' | 'preco-asc'
-  } = {}) => {
-    const query = new URLSearchParams()
-    if (params.page) query.set('page', String(params.page))
-    if (params.perPage) query.set('perPage', String(params.perPage))
-    if (params.category) query.set('category', params.category)
-    if (params.subcategories?.length) query.set('subcategories', params.subcategories.join(','))
-    if (params.q) query.set('q', params.q)
-    if (params.musical) query.set('musical', String(params.musical))
-    if (params.order) query.set('order', params.order)
-    const qs = query.toString()
+  list: (
+    params: {
+      page?: number;
+      perPage?: number;
+      // Um slug ou vários separados por vírgula (filtro acumulativo — OR).
+      category?: string;
+      subcategories?: number[];
+      q?: string;
+      // `musical` (id) = TEMA opcional da obra (Natal, Páscoa, …) — filtra
+      // pela etiqueta escolhida (campo/coluna mantêm o nome interno "musical").
+      musical?: number;
+      // Ordenação (whitelist do backend); ausente = mais recentes.
+      order?: "recentes" | "titulo-az" | "titulo-za" | "preco-desc" | "preco-asc";
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.perPage) query.set("perPage", String(params.perPage));
+    if (params.category) query.set("category", params.category);
+    if (params.subcategories?.length) query.set("subcategories", params.subcategories.join(","));
+    if (params.q) query.set("q", params.q);
+    if (params.musical) query.set("musical", String(params.musical));
+    if (params.order) query.set("order", params.order);
+    const qs = query.toString();
     return request<{
-      items: CatalogItem[]
-      page: number
-      perPage: number
-      total: number
-      totalPages: number
-    }>(`/catalog${qs ? `?${qs}` : ''}`)
+      items: CatalogItem[];
+      page: number;
+      perPage: number;
+      total: number;
+      totalPages: number;
+    }>(`/catalog${qs ? `?${qs}` : ""}`);
   },
 
   detail: (id: number | string) => request<{ content: CatalogDetail }>(`/catalog/${id}`),
-}
+};
 
 export const artistsApi = {
   // order 'recentes' = últimos cadastrados (home), 'nome' = alfabética;
   // padrão do backend: mais publicados. q busca em nome/bio; categoria =
   // slug (só artistas com obra aprovada naquela categoria).
-  list: (params: { order?: 'recentes' | 'nome'; limit?: number; q?: string; categoria?: string } = {}) => {
-    const query = new URLSearchParams()
-    if (params.order) query.set('order', params.order)
-    if (params.limit) query.set('limit', String(params.limit))
-    if (params.q) query.set('q', params.q)
-    if (params.categoria) query.set('categoria', params.categoria)
-    const qs = query.toString()
-    return request<{ artists: ArtistSummary[] }>(`/artists${qs ? `?${qs}` : ''}`)
+  list: (
+    params: { order?: "recentes" | "nome"; limit?: number; q?: string; categoria?: string } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (params.order) query.set("order", params.order);
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.q) query.set("q", params.q);
+    if (params.categoria) query.set("categoria", params.categoria);
+    const qs = query.toString();
+    return request<{ artists: ArtistSummary[] }>(`/artists${qs ? `?${qs}` : ""}`);
   },
 
   profile: (id: number | string) =>
     request<{
-      artist: { id: number; name: string | null; bio: string | null; avatarPath: string | null }
-      contents: Omit<CatalogItem, 'artist'>[]
+      artist: { id: string; name: string | null; bio: string | null; avatarPath: string | null };
+      contents: Omit<CatalogItem, "artist">[];
     }>(`/artists/${id}`),
 
   // Foto de perfil do artista (campo multipart 'avatar').
   uploadAvatar: (file: File) => {
-    const form = new FormData()
-    form.set('avatar', file)
-    return request<{ avatarPath: string }>('/artists/avatar', {
-      method: 'PUT',
+    const form = new FormData();
+    form.set("avatar", file);
+    return request<{ avatarPath: string }>("/artists/avatar", {
+      method: "PUT",
       body: form,
       auth: true,
-    })
+    });
   },
 
   removeAvatar: () =>
-    request<{ message: string }>('/artists/avatar', { method: 'DELETE', auth: true }),
+    request<{ message: string }>("/artists/avatar", { method: "DELETE", auth: true }),
 
   upgrade: (bio?: string) =>
-    request<{ message: string }>('/artists/upgrade', { method: 'POST', body: { bio }, auth: true }),
+    request<{ message: string }>("/artists/upgrade", { method: "POST", body: { bio }, auth: true }),
 
   updateProfile: (bio: string) =>
-    request<{ message: string }>('/artists/profile', { method: 'PUT', body: { bio }, auth: true }),
+    request<{ message: string }>("/artists/profile", { method: "PUT", body: { bio }, auth: true }),
 
   stripeOnboarding: () =>
-    request<{ url: string }>('/artists/stripe/onboarding', { method: 'POST', auth: true }),
+    request<{ url: string }>("/artists/stripe/onboarding", { method: "POST", auth: true }),
 
   stripeStatus: () =>
-    request<{ onboardingComplete: boolean; hasAccount: boolean }>('/artists/stripe/status', {
+    request<{ onboardingComplete: boolean; hasAccount: boolean }>("/artists/stripe/status", {
       auth: true,
     }),
 
   // ---- Contrato do artista (aceite obrigatório antes de publicar) ----
 
-  contract: () => request<ArtistContract>('/artists/contract', { auth: true }),
+  contract: () => request<ArtistContract>("/artists/contract", { auth: true }),
 
   acceptContract: (version: string) =>
-    request<{ message: string; version: string }>('/artists/contract/accept', {
-      method: 'POST',
+    request<{ message: string; version: string }>("/artists/contract/accept", {
+      method: "POST",
       body: { version },
       auth: true,
     }),
@@ -384,72 +441,72 @@ export const artistsApi = {
   // Simulação de repasse (transparência de preço): mesma função do checkout.
   simulateFees: (priceCents: number) =>
     request<FeeSimulation>(`/artists/fees/simulate?priceCents=${priceCents}`, { auth: true }),
-}
+};
 
 export interface ArtistContract {
-  version: string
-  markdown: string
-  acceptedVersion: string | null
-  acceptedAt: string | null
-  upToDate: boolean
+  version: string;
+  markdown: string;
+  acceptedVersion: string | null;
+  acceptedAt: string | null;
+  upToDate: boolean;
 }
 
 export interface FeeSimulation {
-  valorBrutoCents: number
-  taxaProcessamentoCents: number
-  comissaoPlataformaCents: number
-  valorLiquidoArtistaCents: number
-  percentAplicado: number
-  pisoAplicado: boolean
-  tipo: 'venda' | 'gorjeta'
+  valorBrutoCents: number;
+  taxaProcessamentoCents: number;
+  comissaoPlataformaCents: number;
+  valorLiquidoArtistaCents: number;
+  percentAplicado: number;
+  pisoAplicado: boolean;
+  tipo: "venda" | "gorjeta";
   config: {
-    standardPercent: number
-    minFeeCents: number
-    gatewayPercent: number
-    gatewayFixedCents: number
+    standardPercent: number;
+    minFeeCents: number;
+    gatewayPercent: number;
+    gatewayFixedCents: number;
     /** Menor preço publicável com as taxas vigentes (o back é a fonte). */
-    minPriceCents: number
-  }
+    minPriceCents: number;
+  };
 }
 
 // ---- Conteúdos do artista -------------------------------------------------------
 
 export const contentsApi = {
-  mine: () => request<{ contents: MyContent[] }>('/contents/mine', { auth: true }),
+  mine: () => request<{ contents: MyContent[] }>("/contents/mine", { auth: true }),
 
   create: (form: FormData) =>
-    request<{ message: string; contentId: number }>('/contents', {
-      method: 'POST',
+    request<{ message: string; contentId: number }>("/contents", {
+      method: "POST",
       body: form,
       auth: true,
     }),
 
-  update: (id: number, form: FormData) =>
-    request<{ message: string }>(`/contents/${id}`, { method: 'PUT', body: form, auth: true }),
+  update: (id: string, form: FormData) =>
+    request<{ message: string }>(`/contents/${id}`, { method: "PUT", body: form, auth: true }),
 
-  remove: (id: number) =>
-    request<{ message: string }>(`/contents/${id}`, { method: 'DELETE', auth: true }),
+  remove: (id: string) =>
+    request<{ message: string }>(`/contents/${id}`, { method: "DELETE", auth: true }),
 
   // Oculta/reexibe a obra nas vitrines públicas (compradores mantêm acesso).
-  setHidden: (id: number, hidden: boolean) =>
+  setHidden: (id: string, hidden: boolean) =>
     request<{ message: string; hidden: boolean }>(`/contents/${id}/hidden`, {
-      method: 'PUT',
+      method: "PUT",
       body: { hidden },
       auth: true,
     }),
-}
+};
 
 // ---- Compras ----------------------------------------------------------------------
 
 export const purchasesApi = {
-  checkout: (contentId: number) =>
-    request<{ url: string }>('/purchases/checkout', {
-      method: 'POST',
+  checkout: (contentId: string) =>
+    request<{ url: string }>("/purchases/checkout", {
+      method: "POST",
       body: { contentId },
       auth: true,
     }),
 
-  mine: () => request<{ purchases: Purchase[] }>('/purchases/mine', { auth: true }),
+  mine: () => request<{ purchases: Purchase[] }>("/purchases/mine", { auth: true }),
 
   /**
    * Download do arquivo completo (rota autenticada — precisa do header, então
@@ -457,91 +514,123 @@ export const purchasesApi = {
    */
   // Baixa UM arquivo do pacote (fileId de content_files); pacote com um
   // único arquivo dispensa o fileId.
-  async download(contentId: number, fileId?: number | null, suggestedName?: string | null): Promise<void> {
-    const token = getToken()
-    const qs = fileId ? `?file=${fileId}` : ''
+  async download(
+    contentId: string,
+    fileId?: number | null,
+    suggestedName?: string | null,
+  ): Promise<void> {
+    const token = getToken();
+    const qs = fileId ? `?file=${fileId}` : "";
     const res = await fetch(`${BASE_URL}/purchases/content/${contentId}/download${qs}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    });
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new ApiError(data.error ?? 'Erro ao baixar o arquivo.', res.status)
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error ?? "Erro ao baixar o arquivo.", res.status);
     }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = suggestedName || 'conteudo'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
+    saveBlob(await res.blob(), suggestedName || "conteudo");
   },
+
+  /**
+   * Baixa a obra INTEIRA num ZIP (2026-08-05). O nome do arquivo vem do
+   * `Content-Disposition` do servidor, que já monta o nome a partir do
+   * título da obra.
+   */
+  async downloadAll(contentId: string): Promise<void> {
+    const token = getToken();
+    const res = await fetch(`${BASE_URL}/purchases/content/${contentId}/download-all`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error ?? "Erro ao baixar o conteúdo.", res.status);
+    }
+    saveBlob(await res.blob(), nomeDoHeader(res) ?? "conteudo.zip");
+  },
+};
+
+/** Dispara o "salvar como" do navegador a partir de um blob já baixado. */
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Lê o nome sugerido no `Content-Disposition`, se o servidor mandou um. */
+function nomeDoHeader(res: Response): string | null {
+  const header = res.headers.get("Content-Disposition");
+  const match = header?.match(/filename="?([^";]+)"?/i);
+  return match?.[1] ?? null;
 }
 
 // ---- Admin ---------------------------------------------------------------------------
 
 export interface AdminUser {
-  id: number
-  name: string | null
-  email: string
-  emailVerified: boolean
-  isAdmin: boolean
-  isArtist: boolean
-  stripeOnboardingComplete: boolean
-  createdAt: string
+  id: string;
+  name: string | null;
+  email: string;
+  emailVerified: boolean;
+  isAdmin: boolean;
+  isArtist: boolean;
+  stripeOnboardingComplete: boolean;
+  createdAt: string;
 }
 
 export interface AdminContent {
-  id: number
-  title: string
-  description: string | null
-  priceCents: number
-  status: ContentStatus
-  rejectionReason: string | null
-  coverPath: string | null
-  createdAt: string
-  updatedAt: string
+  id: string;
+  title: string;
+  description: string | null;
+  priceCents: number;
+  status: ContentStatus;
+  rejectionReason: string | null;
+  coverPath: string | null;
+  createdAt: string;
+  updatedAt: string;
   /** Takedown do admin: fora do ar, e o artista não reverte. */
-  adminBlocked: boolean
-  adminBlockedReason: string | null
-  musical: Musical | null
-  items: ContentItem[]
-  artist: { id: number; name: string | null; email: string }
+  adminBlocked: boolean;
+  adminBlockedReason: string | null;
+  musical: Musical | null;
+  items: OwnedContentItem[];
+  artist: { id: string; name: string | null; email: string };
 }
 
 export interface AdminPurchase {
-  id: number
-  amountCents: number
-  platformFeeCents: number
-  status: 'pendente' | 'pago' | 'reembolsado'
-  createdAt: string
-  content: { id: number; title: string }
-  buyer: { id: number; name: string | null; email: string }
-  artist: { id: number; name: string | null }
+  id: number;
+  amountCents: number;
+  platformFeeCents: number;
+  status: "pendente" | "pago" | "reembolsado";
+  createdAt: string;
+  content: { id: string; title: string };
+  buyer: { id: string; name: string | null; email: string };
+  artist: { id: string; name: string | null };
 }
 
 export const adminApi = {
   users: (params: { page?: number; q?: string } = {}) => {
-    const query = new URLSearchParams()
-    if (params.page) query.set('page', String(params.page))
-    if (params.q) query.set('q', params.q)
-    const qs = query.toString()
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.q) query.set("q", params.q);
+    const qs = query.toString();
     return request<{ users: AdminUser[]; page: number; perPage: number; total: number }>(
-      `/admin/users${qs ? `?${qs}` : ''}`,
+      `/admin/users${qs ? `?${qs}` : ""}`,
       { auth: true },
-    )
+    );
   },
 
-  contents: (status: ContentStatus = 'em_revisao') =>
+  contents: (status: ContentStatus = "em_revisao") =>
     request<{ contents: AdminContent[] }>(`/admin/contents?status=${status}`, { auth: true }),
 
-  approve: (id: number) =>
-    request<{ message: string }>(`/admin/contents/${id}/approve`, { method: 'POST', auth: true }),
+  approve: (id: string) =>
+    request<{ message: string }>(`/admin/contents/${id}/approve`, { method: "POST", auth: true }),
 
-  reject: (id: number, reason: string) =>
+  reject: (id: string, reason: string) =>
     request<{ message: string }>(`/admin/contents/${id}/reject`, {
-      method: 'POST',
+      method: "POST",
       body: { reason },
       auth: true,
     }),
@@ -549,39 +638,39 @@ export const adminApi = {
   // Takedown de obra JÁ PUBLICADA (direito autoral, conteúdo impróprio):
   // some da vitrine E do link direto, e bloqueia novas compras. Quem já
   // comprou continua baixando.
-  block: (id: number, reason: string) =>
+  block: (id: string, reason: string) =>
     request<{ message: string; adminBlocked: boolean }>(`/admin/contents/${id}/block`, {
-      method: 'POST',
+      method: "POST",
       body: { reason },
       auth: true,
     }),
 
-  unblock: (id: number) =>
+  unblock: (id: string) =>
     request<{ message: string; adminBlocked: boolean }>(`/admin/contents/${id}/unblock`, {
-      method: 'POST',
+      method: "POST",
       auth: true,
     }),
 
   purchases: (params: { page?: number } = {}) => {
-    const query = new URLSearchParams()
-    if (params.page) query.set('page', String(params.page))
-    const qs = query.toString()
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    const qs = query.toString();
     return request<{ purchases: AdminPurchase[]; page: number; perPage: number; total: number }>(
-      `/admin/purchases${qs ? `?${qs}` : ''}`,
+      `/admin/purchases${qs ? `?${qs}` : ""}`,
       { auth: true },
-    )
+    );
   },
 
   createSubcategory: (type: SubcategoryType, name: string) =>
-    request<{ subcategory: Subcategory }>('/categories/subcategories', {
-      method: 'POST',
+    request<{ subcategory: Subcategory }>("/categories/subcategories", {
+      method: "POST",
       body: { type, name },
       auth: true,
     }),
 
   updateSubcategory: (id: number, payload: { name?: string; active?: boolean }) =>
     request<{ message: string }>(`/categories/subcategories/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: payload,
       auth: true,
     }),
@@ -589,23 +678,23 @@ export const adminApi = {
   // Musicais (datas especiais) — mesmo padrão das subcategorias: sem
   // exclusão, o admin desativa (obras podem apontar para o musical).
   createMusical: (name: string) =>
-    request<{ musical: Musical }>('/categories/musicals', {
-      method: 'POST',
+    request<{ musical: Musical }>("/categories/musicals", {
+      method: "POST",
       body: { name },
       auth: true,
     }),
 
   updateMusical: (id: number, payload: { name?: string; active?: boolean }) =>
     request<{ message: string }>(`/categories/musicals/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: payload,
       auth: true,
     }),
-}
+};
 
 // ---- Utilidades -------------------------------------------------------------------
 
 /** Formata centavos como moeda brasileira (ex.: 1990 → "R$ 19,90"). */
 export function formatPrice(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

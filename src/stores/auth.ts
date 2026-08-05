@@ -35,13 +35,15 @@ export const useAuthStore = defineStore('auth', () => {
     safeStorage.setItem(USER_KEY, JSON.stringify(value))
   }
 
+  // O login já devolve o usuário COMPLETO (papéis inclusive) desde
+  // 2026-08-05 — antes vinham só 4 campos e era preciso chamar `/me` logo em
+  // seguida só para descobrir se a pessoa era artista ou admin. Duas
+  // requisições em toda entrada, uma delas puramente por causa do formato.
   async function login(email: string, password: string) {
     const { token: newToken, user: newUser } = await authApi.login({ email, password })
     token.value = newToken
     setToken(newToken)
     persistUser(newUser)
-    // O login não devolve papéis — busca o usuário completo (isAdmin/isArtist).
-    await bootstrap()
   }
 
   /** Login/cadastro via "Entrar com o Google" — mesmo formato de resposta do login comum. */
@@ -50,7 +52,6 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = newToken
     setToken(newToken)
     persistUser(newUser)
-    await bootstrap()
   }
 
   /** Rebusca o usuário no servidor (ex.: após upgrade para artista). */
@@ -96,5 +97,8 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     bootstrap,
     refresh,
+    // Aplica um usuário que o servidor ACABOU de devolver (ex.: `PUT /me`),
+    // evitando um `refresh()` que buscaria de novo o que já está em mãos.
+    setUser: persistUser,
   }
 })

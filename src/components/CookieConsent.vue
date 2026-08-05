@@ -3,7 +3,7 @@
 // armazenamento essencial (sessão, tema, este consentimento), então é um
 // aviso informativo com um único aceite. A escolha fica no localStorage
 // e o modal não volta a aparecer.
-import { onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { safeStorage } from '@/utils/safeStorage'
 
@@ -13,8 +13,50 @@ const STORAGE_KEY = 'cantata-cookies-aceitos'
 // (SSG) não tem localStorage, e o HTML estático não deve trazer o modal.
 const visible = ref(false)
 
+// O aviso é `position: fixed` e fica por cima do fim da página. Quem não
+// aceitou e abre a Política de Privacidade não conseguia ler o último item
+// (QA 2026-08-05). Em vez de mexer só naquela página, o aviso PUBLICA a
+// própria altura em `--consent-space`, e o rodapé reserva esse espaço —
+// resolve em todas as páginas e continua certo se o texto daqui crescer.
+const modalRef = ref<HTMLElement | null>(null)
+let observer: ResizeObserver | null = null
+
+const OFFSET_BOTTOM = 24 // o `bottom: 1.5rem` do próprio aviso
+const FOLGA = 16 // respiro entre o fim do texto e a borda do aviso
+
+function publicarAltura() {
+  const altura = modalRef.value?.offsetHeight ?? 0
+  const espaco = altura ? altura + OFFSET_BOTTOM + FOLGA : 0
+  document.documentElement.style.setProperty('--consent-space', `${espaco}px`)
+}
+
+function limparAltura() {
+  document.documentElement.style.removeProperty('--consent-space')
+}
+
 onMounted(() => {
   visible.value = !safeStorage.getItem(STORAGE_KEY)
+})
+
+// O elemento só existe quando `visible`; o observer acompanha a altura, que
+// muda quando a janela estreita e o texto quebra em mais linhas.
+watch(visible, async (mostrando) => {
+  observer?.disconnect()
+  observer = null
+  if (!mostrando) {
+    limparAltura()
+    return
+  }
+  await nextTick()
+  if (!modalRef.value) return
+  publicarAltura()
+  observer = new ResizeObserver(publicarAltura)
+  observer.observe(modalRef.value)
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  limparAltura()
 })
 
 function accept() {
@@ -27,6 +69,7 @@ function accept() {
   <Transition name="cookie">
     <aside
       v-if="visible"
+      ref="modalRef"
       class="cookie-modal"
       role="dialog"
       aria-label="Aviso de cookies e privacidade"
