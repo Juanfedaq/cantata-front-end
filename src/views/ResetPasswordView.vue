@@ -35,7 +35,7 @@ async function onSubmit() {
     const { message } = await authApi.resetPassword({ token: token.value, password: password.value })
     success.value = message
   } catch (err) {
-    error.value = err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.'
+    error.value = err instanceof ApiError ? err.message : 'Algo não saiu como esperado. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }

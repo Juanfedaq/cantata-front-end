@@ -1,11 +1,16 @@
 <script setup lang="ts">
 // Destaque do sócio como "rosto" do Cantata (2026-07-20): substitui a
 // vitrine de vários artistas na Home enquanto ela fica escondida — ver
-// PROGRESS.md. Conteúdo 100% placeholder por enquanto; trocar pelos dados
-// reais quando o texto/foto estiverem prontos.
-// TODO: trocar pelo id real do usuário/artista do sócio (users.id no banco)
-// assim que soubermos qual é — hoje aponta pro placeholder abaixo.
-const PARTNER_ARTIST_ID = 1;
+// PROGRESS.md.
+//
+// O id do artista vem de VITE_PARTNER_ARTIST_ID (identificador PÚBLICO, UUID).
+// VAZIO = o botão "Ver obras publicadas" simplesmente NÃO aparece.
+//
+// Era um `1` fixo até 2026-08-05, e isso virou link quebrado quando os ids
+// passaram a ser UUID: `/artistas/1` responde 404. Preso no código, o defeito
+// só aparecia em produção; em variável, o pior caso é a seção ficar sem botão
+// — que é o certo enquanto o sócio não tem obra publicada para mostrar.
+const PARTNER_ARTIST_ID = (import.meta.env.VITE_PARTNER_ARTIST_ID ?? "").trim();
 
 const partnerName = "Lucas Abdo Serrato";
 // String em UMA linha de propósito: o .bio usa white-space: pre-line, então
@@ -29,7 +34,7 @@ const photo: string | null = "/abdo.webp";
       <h2 class="section-title">Quem faz o Cantata</h2>
       <h3 class="name">{{ partnerName }}</h3>
       <p class="bio">{{ partnerBio }}</p>
-      <RouterLink :to="`/artistas/${PARTNER_ARTIST_ID}`" class="cta"
+      <RouterLink v-if="PARTNER_ARTIST_ID" :to="`/artistas/${PARTNER_ARTIST_ID}`" class="cta"
         >Ver obras publicadas</RouterLink
       >
     </div>

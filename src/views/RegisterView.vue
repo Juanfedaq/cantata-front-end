@@ -37,7 +37,7 @@ async function onSubmit() {
   // A lista na tela já diz o que falta; aqui só barramos o envio. O servidor
   // continua validando — isto é conveniência, não segurança.
   if (!passwordOk.value) {
-    error.value = 'A senha ainda não cumpre todos os requisitos abaixo.'
+    error.value = 'Uma pausa antes de continuar: a senha ainda não cumpre o que está abaixo.'
     return
   }
 
@@ -51,7 +51,7 @@ async function onSubmit() {
     success.value = message
     name.value = email.value = password.value = confirm.value = ''
   } catch (err) {
-    error.value = err instanceof ApiError ? err.message : 'Erro inesperado. Tente novamente.'
+    error.value = err instanceof ApiError ? err.message : 'Algo não saiu como esperado. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }

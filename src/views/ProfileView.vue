@@ -6,7 +6,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
-import { artistsApi, authApi } from '@/services/api'
+import { ApiError, artistsApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -28,7 +28,7 @@ async function upgrade() {
     await auth.refresh()
     router.push('/artista/conteudos')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao fazer o upgrade.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos atualizar sua conta agora. Tente de novo em instantes.'
     upgrading.value = false
   }
 }
@@ -57,9 +57,15 @@ async function deleteAccount() {
   } catch (err) {
     // O backend responde CONFIRM_EMAIL_REQUIRED quando a conta é só-Google:
     // troca o campo em vez de deixar o titular tentando a senha que não tem.
-    const message = err instanceof Error ? err.message : 'Erro ao excluir a conta.'
-    if (message.includes('e-mail da conta')) isGoogleOnly.value = true
-    error.value = message
+    //
+    // Pelo CÓDIGO, não pelo texto (2026-08-05): até aqui isto comparava
+    // `message.includes('e-mail da conta')`, e bastaria reescrever a frase no
+    // servidor para o campo parar de trocar — sem nada quebrar visivelmente.
+    if (err instanceof ApiError && err.code === 'CONFIRM_EMAIL_REQUIRED') {
+      isGoogleOnly.value = true
+    }
+    error.value =
+      err instanceof Error ? err.message : 'Não conseguimos encerrar sua conta agora. Tente de novo em instantes.'
     deleting.value = false
   }
 }
@@ -81,7 +87,7 @@ async function onAvatarPicked(e: Event) {
     await artistsApi.uploadAvatar(file)
     await auth.refresh() // atualiza o avatarPath do usuário logado
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao enviar a foto.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos guardar sua foto agora. Tente de novo em instantes.'
   } finally {
     avatarSaving.value = false
   }
@@ -95,7 +101,7 @@ async function removeAvatar() {
     await artistsApi.removeAvatar()
     await auth.refresh()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao remover a foto.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos remover a foto agora. Tente de novo em instantes.'
   } finally {
     avatarSaving.value = false
   }
@@ -122,7 +128,7 @@ async function saveName() {
     name.value = user.name ?? ''
     success.value = 'Nome atualizado.'
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao salvar o nome.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos guardar seu nome agora. Tente de novo em instantes.'
   } finally {
     nameSaving.value = false
   }
@@ -148,7 +154,7 @@ async function saveBio() {
     await auth.refresh()
     success.value = 'Perfil atualizado.'
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao salvar a biografia.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos salvar sua biografia agora. Tente de novo em instantes.'
   } finally {
     bioSaving.value = false
   }

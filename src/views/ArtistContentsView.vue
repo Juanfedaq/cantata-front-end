@@ -33,7 +33,7 @@ onMounted(async () => {
   try {
     contents.value = (await contentsApi.mine()).contents
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar seus conteúdos.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer suas obras agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -52,7 +52,7 @@ async function startOnboarding() {
     const { url } = await artistsApi.stripeOnboarding()
     window.location.href = url
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao iniciar o onboarding.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos abrir seu cadastro de recebimentos agora. Tente de novo em instantes.'
     stripeLoading.value = false
   }
 }
@@ -69,7 +69,7 @@ async function remove(content: MyContent) {
     await contentsApi.remove(content.id)
     contents.value = contents.value.filter((c) => c.id !== content.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao excluir.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos excluir agora. Tente de novo em instantes.'
   } finally {
     busyId.value = null
     confirming.value = null
@@ -84,7 +84,7 @@ async function toggleHidden(content: MyContent) {
     const { hidden } = await contentsApi.setHidden(content.id, !content.hidden)
     content.hidden = hidden
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao alterar a visibilidade.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos mudar a visibilidade agora. Tente de novo em instantes.'
   } finally {
     busyId.value = null
     confirming.value = null
@@ -116,18 +116,18 @@ function confirmAction(content: MyContent) {
     <!-- Aviso do Stripe: sem onboarding completo, as vendas ficam bloqueadas -->
     <div v-if="stripeStatus === 'pendente' || stripeStatus === 'indisponivel'" class="stripe-warn">
       <p v-if="stripeStatus === 'pendente'">
-        ⚠️ Complete o cadastro de recebimentos (Stripe) para que seus conteúdos possam ser vendidos.
+        Uma pausa antes de vender: complete seu cadastro de recebimentos.
       </p>
-      <p v-else>⚠️ Não foi possível verificar seu cadastro de recebimentos agora.</p>
+      <p v-else>Não conseguimos conferir seu cadastro de recebimentos agora.</p>
       <button class="stripe-btn" :disabled="stripeLoading" @click="startOnboarding">
         {{ stripeLoading ? 'Redirecionando…' : 'Configurar recebimentos' }}
       </button>
     </div>
-    <p v-else-if="stripeStatus === 'completo'" class="stripe-ok">✅ Recebimentos habilitados via Stripe.</p>
+    <p v-else-if="stripeStatus === 'completo'" class="stripe-ok">Seus recebimentos estão habilitados.</p>
 
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="loading" class="muted">Carregando…</p>
-    <p v-else-if="!contents.length" class="muted">Você ainda não enviou nenhum conteúdo.</p>
+    <p v-else-if="!contents.length" class="muted">Você ainda não enviou nenhuma obra. A primeira começa quando quiser.</p>
 
     <!-- Grid de cards no mesmo desenho da Biblioteca (ContentCard), com o
          badge de status sobre a capa e as ações num rodapé blocado. -->

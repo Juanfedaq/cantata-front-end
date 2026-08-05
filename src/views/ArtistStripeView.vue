@@ -37,8 +37,8 @@ async function retry() {
       <p v-if="status === 'verificando'" class="muted">Verificando seu cadastro no Stripe…</p>
 
       <template v-else-if="status === 'completo'">
-        <h1 class="title">✅ Recebimentos habilitados!</h1>
-        <p class="muted">Seus conteúdos aprovados já podem ser vendidos.</p>
+        <h1 class="title">Recebimentos habilitados</h1>
+        <p class="muted">Suas obras publicadas já podem ser adquiridas.</p>
         <RouterLink to="/artista/conteudos" class="btn">Ir para Meus Conteúdos</RouterLink>
       </template>
 
@@ -47,7 +47,7 @@ async function retry() {
         <p class="muted">
           {{
             status === 'erro'
-              ? 'Não foi possível verificar seu cadastro agora.'
+              ? 'Não conseguimos conferir seu cadastro agora. Tente de novo em instantes.'
               : 'O Stripe ainda precisa de mais informações para habilitar seus recebimentos.'
           }}
         </p>

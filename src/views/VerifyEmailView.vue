@@ -21,7 +21,7 @@ onMounted(async () => {
     message.value = res.message
   } catch (err) {
     status.value = 'error'
-    message.value = err instanceof ApiError ? err.message : 'Não foi possível confirmar o e-mail.'
+    message.value = err instanceof ApiError ? err.message : 'Não conseguimos confirmar seu e-mail agora. Tente de novo em instantes.'
   }
 })
 </script>

@@ -34,7 +34,7 @@ async function fetchArtists() {
       })
     ).artists
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar os artistas.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer os artistas agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -98,7 +98,7 @@ onMounted(async () => {
 
     <p v-if="loading" class="muted">Carregando…</p>
     <p v-else-if="error" class="error">{{ error }}</p>
-    <p v-else-if="!artists.length" class="muted">Nenhum artista encontrado com esses filtros.</p>
+    <p v-else-if="!artists.length" class="muted">Nenhum artista com esses filtros. Tente afrouxar um deles.</p>
 
     <div v-else class="grid">
       <RouterLink

@@ -33,7 +33,7 @@ async function loadContents() {
   try {
     contents.value = (await adminApi.contents(modStatus.value)).contents
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar a fila.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer a fila de revisão agora. Tente de novo em instantes.'
   } finally {
     loadingContents.value = false
   }
@@ -48,7 +48,7 @@ async function downloadFull(c: AdminContent, file: { id: number; fileName: strin
   try {
     await purchasesApi.download(c.id, file.id, file.fileName)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao baixar o arquivo.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos entregar o arquivo agora. Tente de novo em instantes.'
   } finally {
     downloadingFile.value = null
   }
@@ -59,7 +59,7 @@ async function approve(c: AdminContent) {
     await adminApi.approve(c.id)
     contents.value = contents.value.filter((x) => x.id !== c.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao aprovar.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos aprovar a obra agora. Tente de novo em instantes.'
   }
 }
 
@@ -74,7 +74,7 @@ async function reject(c: AdminContent) {
     rejectingId.value = null
     rejectReason.value = ''
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao reprovar.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos devolver a obra agora. Tente de novo em instantes.'
   }
 }
 
@@ -98,7 +98,7 @@ async function block(c: AdminContent) {
     blockingId.value = null
     blockReason.value = ''
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao bloquear.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos tirar a obra do ar agora. Tente de novo em instantes.'
   }
 }
 
@@ -108,7 +108,7 @@ async function unblock(c: AdminContent) {
     c.adminBlocked = false
     c.adminBlockedReason = null
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao desbloquear.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos devolver a obra ao ar agora. Tente de novo em instantes.'
   }
 }
 
@@ -126,7 +126,7 @@ async function loadUsers() {
     users.value = res.users
     usersTotal.value = res.total
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar usuários.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer os usuários agora. Tente de novo em instantes.'
   } finally {
     loadingUsers.value = false
   }
@@ -142,7 +142,7 @@ async function loadPurchases() {
   try {
     purchases.value = (await adminApi.purchases()).purchases
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar compras.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer as compras agora. Tente de novo em instantes.'
   } finally {
     loadingPurchases.value = false
   }
@@ -157,7 +157,7 @@ async function loadSubcategories() {
   try {
     subcategories.value = (await catalogApi.categories()).subcategories
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar subcategorias.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer as etiquetas agora. Tente de novo em instantes.'
   }
 }
 
@@ -169,7 +169,7 @@ async function createSub() {
     subcategories.value.push(subcategory)
     newSubName.value = ''
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao criar subcategoria.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos criar a etiqueta agora. Tente de novo em instantes.'
   }
 }
 
@@ -178,7 +178,7 @@ async function deactivateSub(sub: Subcategory) {
     await adminApi.updateSubcategory(sub.id, { active: false })
     subcategories.value = subcategories.value.filter((s) => s.id !== sub.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao desativar.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos salvar a mudança agora. Tente de novo em instantes.'
   }
 }
 
@@ -193,7 +193,7 @@ async function loadMusicals() {
   try {
     musicals.value = (await catalogApi.categories()).musicals
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao listar musicais.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer os temas agora. Tente de novo em instantes.'
   }
 }
 
@@ -205,7 +205,7 @@ async function createMusical() {
     musicals.value.push(musical)
     newMusicalName.value = ''
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao criar musical.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos criar o tema agora. Tente de novo em instantes.'
   }
 }
 
@@ -214,7 +214,7 @@ async function deactivateMusical(m: Musical) {
     await adminApi.updateMusical(m.id, { active: false })
     musicals.value = musicals.value.filter((x) => x.id !== m.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao desativar.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos salvar a mudança agora. Tente de novo em instantes.'
   }
 }
 
@@ -258,7 +258,7 @@ onMounted(loadContents)
       </div>
 
       <p v-if="loadingContents" class="muted">Carregando…</p>
-      <p v-else-if="!contents.length" class="muted">Nada aqui. 🎉</p>
+      <p v-else-if="!contents.length" class="muted">Nada esperando revisão.</p>
 
       <ul v-else class="mod-list">
         <li v-for="c in contents" :key="c.id" class="mod-item">
@@ -356,7 +356,7 @@ onMounted(loadContents)
     <!-- ================= Compras ================= -->
     <section v-else-if="tab === 'compras'">
       <p v-if="loadingPurchases" class="muted">Carregando…</p>
-      <p v-else-if="!purchases.length" class="muted">Nenhuma compra registrada.</p>
+      <p v-else-if="!purchases.length" class="muted">Você ainda não adquiriu nenhuma obra.</p>
       <div v-else class="table-wrap">
         <table class="table">
           <thead>

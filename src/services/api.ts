@@ -69,7 +69,7 @@ export async function request<T = unknown>(path: string, options: RequestOptions
       body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError("Não foi possível conectar ao servidor. Tente novamente.", 0);
+    throw new ApiError("Não conseguimos falar com o servidor. Confira sua conexão e tente de novo.", 0);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -526,7 +526,7 @@ export const purchasesApi = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new ApiError(data.error ?? "Erro ao baixar o arquivo.", res.status);
+      throw new ApiError(data.error ?? "Não conseguimos entregar o arquivo agora. Tente de novo em instantes.", res.status);
     }
     saveBlob(await res.blob(), suggestedName || "conteudo");
   },
@@ -543,7 +543,7 @@ export const purchasesApi = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new ApiError(data.error ?? "Erro ao baixar o conteúdo.", res.status);
+      throw new ApiError(data.error ?? "Não conseguimos preparar seu download agora. Tente de novo em instantes.", res.status);
     }
     saveBlob(await res.blob(), nomeDoHeader(res) ?? "conteudo.zip");
   },

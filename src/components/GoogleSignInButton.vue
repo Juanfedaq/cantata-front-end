@@ -90,7 +90,7 @@ onMounted(async () => {
           await auth.loginWithGoogle(response.credential)
           emit('success')
         } catch (err) {
-          emit('error', err instanceof Error ? err.message : 'Erro ao entrar com o Google.')
+          emit('error', err instanceof Error ? err.message : 'Não conseguimos entrar pelo Google agora. Tente de novo em instantes.')
         }
       },
     })
@@ -103,7 +103,7 @@ onMounted(async () => {
       locale: 'pt-BR',
     })
   } catch {
-    emit('error', 'Não foi possível carregar o login do Google.')
+    emit('error', 'Não conseguimos carregar a entrada pelo Google.')
   }
 })
 

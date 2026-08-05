@@ -47,7 +47,7 @@ onMounted(async () => {
     categories.value = cats.categories;
     latest.value = items.items;
   } catch {
-    error.value = "Não foi possível carregar o catálogo agora. Recarregue a página em instantes.";
+    error.value = "Não conseguimos trazer a biblioteca agora. Recarregue a página em instantes.";
   } finally {
     loading.value = false;
   }
@@ -110,7 +110,7 @@ onMounted(async () => {
         <h2 class="section-title">Últimos lançamentos</h2>
         <p v-if="loading" class="muted">Carregando…</p>
         <p v-else-if="error" class="error">{{ error }}</p>
-        <p v-else-if="!latest.length" class="muted">Nenhum conteúdo publicado ainda.</p>
+        <p v-else-if="!latest.length" class="muted">A biblioteca ainda está em silêncio. As primeiras obras vêm logo.</p>
         <div v-else class="grid">
           <MotionContentCard
             v-for="(item, i) in latest"

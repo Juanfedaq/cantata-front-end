@@ -37,7 +37,7 @@ onMounted(async () => {
     contract.value = await artistsApi.contract()
     accepted.value = contract.value.upToDate
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar o contrato.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos abrir o contrato agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -52,7 +52,7 @@ async function accept() {
     accepted.value = true
     router.push(redirectTo.value)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao registrar o aceite.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos registrar seu aceite agora. Tente de novo em instantes.'
     accepting.value = false
   }
 }
@@ -68,7 +68,7 @@ async function accept() {
 
       <template v-if="contract">
         <p v-if="accepted" class="status ok">
-          ✅ Você aceitou a versão {{ contract.acceptedVersion }} destes termos
+          Você aceitou a versão {{ contract.acceptedVersion }} destes termos
           <template v-if="contract.acceptedAt">
             em {{ new Date(contract.acceptedAt).toLocaleDateString('pt-BR') }}</template>.
           Pode publicar normalmente.

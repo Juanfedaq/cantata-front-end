@@ -208,7 +208,7 @@ async function fetchItems() {
     totalPages.value = res.totalPages
     total.value = res.total
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar o catálogo.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer a biblioteca agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -231,7 +231,7 @@ const emptyLabel = computed(() => {
   const termo = q.value.trim()
   return termo
     ? `Nenhum conteúdo encontrado para “${termo}”. Tente outra palavra ou revise os filtros.`
-    : 'Nenhum conteúdo encontrado com esses filtros.'
+    : 'Nada por aqui com esses filtros. Tente afrouxar um deles.'
 })
 
 function toggleSub(id: number) {

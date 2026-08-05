@@ -37,7 +37,7 @@ onMounted(async () => {
     artist.value = res.artist
     contents.value = res.contents
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar o perfil.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos abrir este perfil agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -59,7 +59,7 @@ onMounted(async () => {
       </header>
 
       <h2 class="section-title">Conteúdos publicados</h2>
-      <p v-if="!contents.length" class="muted">Este artista ainda não publicou conteúdos.</p>
+      <p v-if="!contents.length" class="muted">Este artista ainda não publicou nada por aqui.</p>
       <div v-else class="grid">
         <ContentCard
           v-for="item in contents"

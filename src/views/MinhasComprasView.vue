@@ -15,12 +15,12 @@ const downloadingId = ref<number | null>(null)
 onMounted(async () => {
   if (route.query.checkout === 'sucesso') {
     success.value =
-      'Pagamento iniciado! No cartão a confirmação é quase imediata; no Pix ou boleto pode levar alguns minutos — a compra aparece abaixo como "Aguardando confirmação" até lá.'
+      'Pagamento iniciado. No cartão a confirmação é quase imediata; no Pix ou boleto leva alguns minutos — até lá a compra aparece abaixo como "aguardando confirmação".'
   }
   try {
     purchases.value = (await purchasesApi.mine()).purchases
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar suas compras.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos trazer suas compras agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -49,7 +49,7 @@ async function download(p: Purchase) {
       await purchasesApi.downloadAll(p.content.id)
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao baixar o conteúdo.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos preparar seu download agora. Tente de novo em instantes.'
   } finally {
     downloadingId.value = null
   }
@@ -73,7 +73,7 @@ function purchaseDate(iso: string): string {
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="loading" class="muted">Carregando…</p>
     <p v-else-if="!purchases.length" class="muted">
-      Você ainda não comprou nenhum conteúdo.
+      Você ainda não adquiriu nenhuma obra.
       <RouterLink to="/biblioteca" class="link">Explorar a biblioteca →</RouterLink>
     </p>
 
@@ -114,7 +114,7 @@ function purchaseDate(iso: string): string {
             · {{ formatPrice(p.amountCents) }}
           </p>
           <p v-if="p.status === 'pendente'" class="pending-badge">
-            Aguardando confirmação do pagamento (Pix/boleto podem levar alguns minutos)
+            Aguardando a confirmação do pagamento — no Pix ou boleto isso leva alguns minutos.
           </p>
         </div>
 

@@ -32,7 +32,7 @@ async function onSubmit() {
       error.value = err.message
       if (err.code === 'EMAIL_NOT_VERIFIED') needsVerification.value = true
     } else {
-      error.value = 'Erro inesperado. Tente novamente.'
+      error.value = 'Algo não saiu como esperado. Tente de novo em instantes.'
     }
   } finally {
     loading.value = false
@@ -55,7 +55,7 @@ async function resend() {
     const { message } = await authApi.resendVerification(email.value)
     info.value = message
   } catch {
-    error.value = 'Não foi possível reenviar o e-mail.'
+    error.value = 'Não conseguimos reenviar o e-mail agora. Tente de novo em instantes.'
   }
 }
 </script>

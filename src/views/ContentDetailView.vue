@@ -73,7 +73,7 @@ onMounted(async () => {
   try {
     content.value = (await catalogApi.detail(String(route.params.id))).content
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Erro ao carregar o conteúdo.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos abrir esta obra agora. Tente de novo em instantes.'
   } finally {
     loading.value = false
   }
@@ -142,7 +142,7 @@ async function buy() {
     const { url } = await purchasesApi.checkout(content.value.id)
     window.location.href = url // redireciona para o Checkout do Stripe
   } catch (err) {
-    buyError.value = err instanceof Error ? err.message : 'Erro ao iniciar o pagamento.'
+    buyError.value = err instanceof Error ? err.message : 'Não conseguimos abrir o pagamento agora. Tente de novo em instantes.'
     buying.value = false
   }
 }
@@ -191,7 +191,7 @@ async function buy() {
             <a class="share-item" :href="shareLinks.facebook" target="_blank" rel="noopener">Facebook</a>
             <a class="share-item" :href="shareLinks.x" target="_blank" rel="noopener">X</a>
             <button type="button" class="share-item" :class="{ copied }" @click="copyLink">
-              {{ copied ? 'Link copiado!' : 'Copiar link' }}
+              {{ copied ? 'Link copiado' : 'Copiar link' }}
             </button>
             <button v-if="hasNativeShare" type="button" class="share-item" @click="shareNative">
               Mais…
@@ -218,7 +218,7 @@ async function buy() {
 
         <div class="buy-box">
           <p class="price">{{ formatPrice(content.priceCents) }}</p>
-          <p v-if="isOwn" class="muted">Este conteúdo é seu.</p>
+          <p v-if="isOwn" class="muted">Esta obra é sua.</p>
           <!-- Já adquirido: sem "Comprar" — leva a Minhas Compras p/ baixar -->
           <template v-else-if="isPurchased">
             <p class="owned-note">✓ Você já adquiriu este conteúdo.</p>
@@ -229,7 +229,7 @@ async function buy() {
               {{ buying ? 'Redirecionando…' : 'Comprar' }}
             </button>
             <p v-if="!content.purchasable" class="muted small">
-              Compra temporariamente indisponível para este artista.
+              Este artista ainda está preparando os recebimentos. Volte em breve.
             </p>
           </template>
           <p v-if="buyError" class="error small">{{ buyError }}</p>

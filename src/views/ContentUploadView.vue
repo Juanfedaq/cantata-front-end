@@ -358,7 +358,7 @@ onMounted(async () => {
     // Abre o primeiro acordeão por padrão (há sempre ≥1 a preencher).
     if (cats.categories[0]) expanded.value[cats.categories[0].slug] = true
   } catch {
-    error.value = 'Erro ao carregar as categorias. Recarregue a página.'
+    error.value = 'Não conseguimos trazer as categorias. Recarregue a página.'
   }
 
   // Em edição, pré-carrega metadados, arquivos existentes e prévias.
@@ -400,7 +400,7 @@ onMounted(async () => {
       // aviso, o artista via um formulário VAZIO numa tela de edição, concluía
       // que a obra tinha perdido os dados e redigitava tudo por cima.
       error.value =
-        'Não foi possível carregar os dados desta obra. Recarregue a página antes de editar — enviar agora pode sobrescrever o que está publicado.'
+        'Não conseguimos trazer os dados desta obra. Recarregue a página antes de editar — enviar agora pode sobrescrever o que está publicado.'
     }
   }
 })
@@ -584,7 +584,7 @@ async function submit(asDraft: boolean) {
     if (err instanceof ApiError && err.code === 'STRIPE_ONBOARDING_REQUIRED') {
       stripeOk.value = false
     }
-    error.value = err instanceof Error ? err.message : 'Erro ao enviar a obra.'
+    error.value = err instanceof Error ? err.message : 'Não conseguimos guardar sua obra agora. Tente de novo em instantes.'
     sending.value = false
   }
 }

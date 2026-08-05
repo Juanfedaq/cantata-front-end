@@ -5,6 +5,7 @@ import ArtistAvatar from '@/components/ArtistAvatar.vue'
 import ThemeSwitch from '@/components/ThemeSwitch.vue'
 import { lockScroll } from '@/scroll'
 import { useAuthStore } from '@/stores/auth'
+import { APP_VERSION } from '@/version'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -247,7 +248,7 @@ function logout() {
     </main>
 
     <footer class="footer">
-      <p>Cantata — conteúdos musicais de quem cria para quem toca. 🎵</p>
+      <p>Cantata — conteúdos musicais de quem cria para quem toca.</p>
       <nav class="footer-links">
         <!-- CTA de virar artista comentado (2026-07-20, ver PROGRESS.md) —
              por ora não convidamos novos artistas a se cadastrar.
@@ -257,6 +258,10 @@ function logout() {
         -->
         <RouterLink to="/privacidade" class="footer-link">Política de Privacidade</RouterLink>
       </nav>
+      <!-- Versão: última linha, discreta. Serve ao suporte — quando alguém
+           relatar um problema, dá para saber qual build a pessoa estava
+           usando sem ter que perguntar. -->
+      <p class="version">versão {{ APP_VERSION }}</p>
     </footer>
   </div>
 </template>
@@ -492,6 +497,16 @@ $line: rgba(var(--fg-rgb), 0.1);
   font-size: 0.85rem;
   text-align: center;
   transition: padding-bottom 0.5s $ease-brand;
+}
+
+// Versão: a informação mais apagada do rodapé — está ali para o suporte, não
+// para o visitante. Números alinhados com tabular-nums.
+.version {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  color: rgba(var(--fg-rgb), 0.28);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
 .footer-links {
