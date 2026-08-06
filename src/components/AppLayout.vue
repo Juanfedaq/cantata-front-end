@@ -116,8 +116,12 @@ function logout() {
         <nav v-if="mobileOpen" class="mobile-panel">
           <RouterLink to="/inicio" @click="closeMobile">Início</RouterLink>
           <RouterLink to="/biblioteca" @click="closeMobile">Biblioteca</RouterLink>
-          <!-- Minhas Compras no menu principal (só logado), fora do bloco da conta. -->
-          <RouterLink v-if="auth.isAuthenticated" to="/compras" @click="closeMobile">Minhas Compras</RouterLink>
+          <!-- Minhas Compras no menu principal (só logado), fora do bloco da
+               conta. Escondida do ADMIN (2026-08-06): a conta de suporte não
+               compra, e o link levava a uma página sempre vazia. O que ele
+               precisa ver sobre vendas está no Dashboard do painel. A rota
+               continua no ar — se um dia o admin comprar, a página funciona. -->
+          <RouterLink v-if="auth.isAuthenticated && !auth.isAdmin" to="/compras" @click="closeMobile">Minhas Compras</RouterLink>
           <!-- Vitrine de vários artistas escondida (2026-07-20, ver
                PROGRESS.md) — o link some junto com a rota comentada no router.
           <RouterLink to="/artistas" @click="closeMobile">Artistas</RouterLink>
@@ -163,8 +167,9 @@ function logout() {
       <nav class="menu">
         <RouterLink to="/inicio">Início</RouterLink>
         <RouterLink to="/biblioteca">Biblioteca</RouterLink>
-        <!-- Minhas Compras saiu do dropdown para o menu principal (só logado). -->
-        <RouterLink v-if="auth.isAuthenticated" to="/compras">Minhas Compras</RouterLink>
+        <!-- Minhas Compras saiu do dropdown para o menu principal (só
+             logado, e não para o admin — ver o comentário no menu mobile). -->
+        <RouterLink v-if="auth.isAuthenticated && !auth.isAdmin" to="/compras">Minhas Compras</RouterLink>
         <!-- Vitrine de vários artistas escondida (2026-07-20, ver
              PROGRESS.md) — o link some junto com a rota comentada no router.
         <RouterLink to="/artistas">Artistas</RouterLink>
