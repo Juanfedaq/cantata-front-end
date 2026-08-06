@@ -8,6 +8,7 @@ import AppLayout from '@/components/AppLayout.vue'
 import ArtistAvatar from '@/components/ArtistAvatar.vue'
 import { ApiError, artistsApi, authApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { ARTIST_SIGNUP_OPEN } from '@/flags'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -44,6 +45,28 @@ const deletePassword = ref('')
 const deleteEmail = ref('')
 // Conta sem senha = criada pelo Google (o backend pede o e-mail como confirmação).
 const isGoogleOnly = ref(false)
+
+// A confirmação só vale se estiver preenchida. Sem isto o botão disparava uma
+// requisição que voltava 403 — nada era apagado, mas quem clicou sem querer
+// recebia um erro em vez de nada acontecer.
+const confirmacaoPreenchida = computed(() =>
+  isGoogleOnly.value ? !!deleteEmail.value.trim() : !!deletePassword.value,
+)
+
+/**
+ * Fecha a confirmação E APAGA o que foi digitado.
+ *
+ * Limpar é o ponto (2026-08-05): antes o "Cancelar" só escondia o formulário.
+ * Quem digitasse a senha, se arrependesse e cancelasse voltava com o campo
+ * preenchido — e aí bastava UM clique para apagar a conta. A confirmação
+ * deixava de confirmar exatamente para quem já tinha hesitado uma vez.
+ */
+function cancelarExclusao() {
+  deleteOpen.value = false
+  deletePassword.value = ''
+  deleteEmail.value = ''
+  error.value = ''
+}
 
 async function deleteAccount() {
   deleting.value = true
@@ -175,14 +198,27 @@ async function saveBio() {
     <p v-if="error" class="feedback error">{{ error }}</p>
     <p v-if="success" class="feedback ok">{{ success }}</p>
 
-    <!-- Ainda não é artista: convite para o upgrade (ex-dashboard). -->
-    <section v-if="!auth.isArtist" class="group upgrade">
-      <h2 class="group-label">Torne-se um artista</h2>
+    <!-- Ainda não é artista: convite para o upgrade (ex-dashboard).
+         No beta o cadastro de artistas está fechado (ver src/flags.ts) — o
+         convite continua visível, mas o botão espera.
+         Some para ADMIN (2026-08-05): quem modera a fila não pode ter obra
+         nela, senão aprova a própria. O servidor também recusa
+         (ADMIN_CANNOT_BE_ARTIST), independente da chave acima. -->
+    <section v-if="!auth.isArtist && !auth.isAdmin" class="group upgrade">
+      <h2 class="group-label">Vender no Cantata</h2>
       <p class="upgrade-text">
         Publique partituras, músicas, cifras e coreografias e receba pelas vendas.
       </p>
-      <button class="save-btn" :disabled="upgrading" @click="upgrade">
-        {{ upgrading ? 'Ativando…' : 'Quero vender meus conteúdos' }}
+      <p v-if="!ARTIST_SIGNUP_OPEN" class="upgrade-soon">
+        Por enquanto a publicação é só a convite. Em breve qualquer pessoa vai poder
+        abrir sua estante aqui — e avisaremos quando essa porta se abrir.
+      </p>
+      <button
+        class="save-btn"
+        :disabled="!ARTIST_SIGNUP_OPEN || upgrading"
+        @click="upgrade"
+      >
+        {{ !ARTIST_SIGNUP_OPEN ? 'Em breve' : upgrading ? 'Ativando…' : 'Quero vender minhas obras' }}
       </button>
     </section>
 
@@ -261,16 +297,35 @@ async function saveBio() {
     </section>
 
     <!-- Exclusão de conta: por último e visualmente separado, para não
-         competir com as ações do dia a dia. -->
-    <section class="group danger">
+         competir com as ações do dia a dia.
+         Some para ADMIN (2026-08-05): um admin que apagasse a própria conta
+         deixaria a plataforma sem moderação, e o papel só volta com acesso
+         direto ao banco. O servidor também recusa (ADMIN_CANNOT_DELETE) —
+         esconder a seção não fecharia a rota. -->
+    <section v-if="!auth.isAdmin" class="group danger">
       <h2 class="group-label">Excluir minha conta</h2>
+      <!-- Dois textos (2026-08-05): o anterior falava de biografia, de obras e
+           de "quem comprou suas obras" — nada disso diz respeito a quem só
+           compra. E deixava de fora o que MAIS importa para essa pessoa: ao
+           encerrar a conta ela perde o acesso ao que adquiriu, porque o
+           download depende de entrar, e não haverá mais conta para entrar. -->
       <p class="danger-text">
-        Seus dados pessoais — nome, e-mail, foto e biografia — são removidos e a
-        conta deixa de existir. <strong>O histórico de compras é mantido</strong>,
-        por obrigação fiscal: quem comprou suas obras continua com o download, e
-        as suas compras seguem no registro contábil da plataforma. Suas obras
-        saem do catálogo e não podem mais ser vendidas. <strong>Não há
-        volta.</strong>
+        Seus dados pessoais — nome, e-mail e foto — são removidos, e a conta
+        deixa de existir. <strong>Não há volta.</strong>
+      </p>
+      <p class="danger-text">
+        <strong>Você perde o acesso às obras que adquiriu.</strong> O download
+        fica ligado à sua conta; sem ela, não há como entrar para baixar. Se
+        quiser guardar alguma, baixe antes de seguir.
+      </p>
+      <p v-if="auth.isArtist" class="danger-text">
+        Suas obras saem da biblioteca e não podem mais ser adquiridas. Sua
+        biografia e sua foto de perfil saem junto. <strong>Quem já comprou
+        continua com o que levou</strong> — nenhuma venda é desfeita.
+      </p>
+      <p class="danger-text">
+        O registro contábil das compras é mantido por obrigação fiscal, sem
+        ligação com os seus dados pessoais.
       </p>
 
       <button v-if="!deleteOpen" class="danger-btn" @click="deleteOpen = true">
@@ -287,10 +342,14 @@ async function saveBio() {
           <input v-model="deletePassword" type="password" class="input" autocomplete="current-password" />
         </label>
         <div class="danger-actions">
-          <button class="danger-btn" :disabled="deleting" @click="deleteAccount">
+          <button
+            class="danger-btn"
+            :disabled="deleting || !confirmacaoPreenchida"
+            @click="deleteAccount"
+          >
             {{ deleting ? 'Excluindo…' : 'Excluir definitivamente' }}
           </button>
-          <button class="cancel-btn" :disabled="deleting" @click="deleteOpen = false">
+          <button class="cancel-btn" :disabled="deleting" @click="cancelarExclusao">
             Cancelar
           </button>
         </div>
@@ -366,6 +425,9 @@ async function saveBio() {
   border: none;
   padding: 0;
   cursor: pointer;
+  // Controles de formulário não herdam a fonte: sem isto o botão sai na
+  // fonte do sistema, ao lado de texto na fonte do site.
+  font-family: inherit;
   font-size: 0.9rem;
   color: $gold-text;
   transition: color 0.5s $ease-brand;
@@ -465,6 +527,14 @@ async function saveBio() {
 .save-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+// Aviso do "em breve": tom de nota, não de erro — nada aqui deu errado.
+.upgrade-soon {
+  margin-top: 0.75rem;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: rgba(var(--fg-rgb), 0.6);
 }
 
 .group-foot {
