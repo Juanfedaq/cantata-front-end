@@ -8,6 +8,7 @@ import CategoryIcon from "@/components/CategoryIcon.vue";
 import PartnerSpotlight from "@/components/PartnerSpotlight.vue";
 import { catalogApi, type CatalogItem, type Category } from "@/services/api";
 import { useThemeStore } from "@/stores/theme";
+import { catHue } from "@/utils/categoryStyle";
 
 const theme = useThemeStore();
 
@@ -96,10 +97,10 @@ onMounted(async () => {
             :key="cat.id"
             :to="`/biblioteca?categoria=${cat.slug}`"
             class="category-card"
-            :class="cat.slug"
+            :style="catHue(cat)"
             v-bind="rise(i * 0.06, 18)"
           >
-            <CategoryIcon class="category-icon" :slug="cat.slug" :size="28" />
+            <CategoryIcon class="category-icon" :icon="cat.icon" :size="28" />
             <span>{{ cat.name }}</span>
           </MotionLink>
         </div>
@@ -252,11 +253,6 @@ onMounted(async () => {
     background-color 0.5s $ease-brand;
   @include hover-light;
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 
   &:hover {
     color: $color-white;

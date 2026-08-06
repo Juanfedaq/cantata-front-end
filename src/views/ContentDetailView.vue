@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useOwnedStore } from '@/stores/owned'
 import { catalogApi, purchasesApi, fileUrl, formatPrice, type CatalogDetail } from '@/services/api'
 import { usePageSeo } from '@/composables/useSeo'
+import { substantivoDoArquivo } from '@/categoryKinds'
+import { catHue } from '@/utils/categoryStyle'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,21 +50,21 @@ const isPurchased = computed(() => !!content.value && owned.owns(content.value.i
 // Resumo "Este produto contém": conta os arquivos por categoria e descreve
 // pelo tipo de arquivo (áudio/vídeo) ou pelo nome da categoria (partitura/
 // cifra). Ex.: "2 arquivos de áudio", "1 arquivo de cifra".
-const CATEGORY_FILE_NOUN: Record<string, string> = {
-  partituras: 'partitura',
-  musicas: 'áudio',
-  cifras: 'cifra',
-  coreografias: 'vídeo',
-}
-
+//
+// O substantivo saía de um mapa por slug, que só valia enquanto as categorias
+// eram as quatro fixas. Agora vem da natureza e do nome que o admin deu
+// (`substantivoDoArquivo`) — categoria nova entra com frase certa sem deploy.
 const packageSummary = computed(() =>
-  (content.value?.items ?? [])
-    .map((item) => {
-      const n = item.files.length
-      const noun = CATEGORY_FILE_NOUN[item.category.slug] ?? item.category.name.toLowerCase()
-      return { slug: item.category.slug, text: `${n} ${n === 1 ? 'arquivo' : 'arquivos'} de ${noun}` }
-    })
-    .filter((s) => s.text),
+  (content.value?.items ?? []).map((item) => {
+    const n = item.files.length
+    const noun = substantivoDoArquivo(item.category)
+    return {
+      slug: item.category.slug,
+      icon: item.category.icon,
+      hue: item.category.hue,
+      text: `${n} ${n === 1 ? 'arquivo' : 'arquivos'} de ${noun}`,
+    }
+  }),
 )
 
 onMounted(async () => {
@@ -175,7 +177,7 @@ async function buy() {
 
       <div class="info">
         <span class="cat-tags">
-          <span v-for="cat in content.categories" :key="cat.slug" class="category" :class="cat.slug">{{ cat.name }}</span>
+          <span v-for="cat in content.categories" :key="cat.slug" class="category" :style="catHue(cat)">{{ cat.name }}</span>
         </span>
         <h1 class="title">{{ content.title }}</h1>
         <RouterLink :to="`/artistas/${content.artist.id}`" class="artist">
@@ -206,7 +208,7 @@ async function buy() {
           <h2 class="includes-title">Este produto contém</h2>
           <ul class="includes-list">
             <li v-for="line in packageSummary" :key="line.slug">
-              <CategoryIcon class="includes-icon" :class="line.slug" :slug="line.slug" :size="18" />
+              <CategoryIcon class="includes-icon" :style="catHue(line)" :icon="line.icon" :size="18" />
               <span>{{ line.text }}</span>
             </li>
           </ul>
@@ -386,11 +388,6 @@ async function buy() {
   flex-shrink: 0;
   color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 // Tags como grupo blocado colado (guia §3): sem pílulas, bordas sobrepostas.

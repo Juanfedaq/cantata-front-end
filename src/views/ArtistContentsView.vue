@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
 import { contentsApi, artistsApi, fileUrl, formatPrice, type MyContent } from '@/services/api'
+import { catHue } from '@/utils/categoryStyle'
 
 // Destino do card: obra publicada abre a página pública; rascunho e
 // reprovado abrem a edição (ajustar e reenviar).
@@ -232,12 +233,12 @@ function confirmAction(content: MyContent) {
                 v-for="cat in c.categories"
                 :key="cat.slug"
                 class="category"
-                :class="cat.slug"
+                :style="catHue(cat)"
                 role="img"
                 :aria-label="cat.name"
                 :title="cat.name"
               >
-                <CategoryIcon :slug="cat.slug" :size="18" />
+                <CategoryIcon :icon="cat.icon" :size="18" />
               </span>
             </span>
             <h3 class="title">{{ c.title }}</h3>
@@ -440,11 +441,6 @@ function confirmAction(content: MyContent) {
   display: inline-flex;
   color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 .title {

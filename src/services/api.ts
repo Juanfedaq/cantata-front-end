@@ -1,5 +1,6 @@
 // Cliente HTTP mínimo em torno do fetch, centralizando a URL base,
 // o cabeçalho de autenticação e o tratamento de erros da API.
+import type { CategoryKind } from "@/categoryKinds";
 import { safeStorage } from "@/utils/safeStorage";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -177,10 +178,35 @@ export const authApi = {
 
 // ---- Tipos do domínio -------------------------------------------------------
 
+/**
+ * Categoria como vem de `GET /categories` (só as ativas) e do painel.
+ *
+ * `kind`, `icon` e `hue` chegaram em 2026-08-06, quando as categorias viraram
+ * editáveis pelo admin. Antes essas três coisas eram decididas pelo SLUG,
+ * dentro do código: um mapa de extensões no backend, um `v-if` por slug no
+ * CategoryIcon e um mapa SCSS de matizes resolvido no build.
+ */
 export interface Category {
   id: number;
   slug: string;
   name: string;
+  /** O que a categoria recebe. Decide extensões aceitas e a dica do formulário. */
+  kind: CategoryKind;
+  /** Chave do catálogo de ícones (CategoryIcon.vue). */
+  icon: string;
+  /** Matiz da tag, 0–360. Saturação e luminância continuam travadas no CSS. */
+  hue: number;
+  position: number;
+  active: boolean;
+}
+
+/** Categoria no painel do admin: traz quantas obras dependem dela. */
+export interface AdminCategory extends Category {
+  /**
+   * Itens de obra que apontam para esta categoria. Zero significa que excluir
+   * apaga de verdade; acima de zero, excluir apenas recolhe (desativa).
+   */
+  contentCount: number;
 }
 
 export type SubcategoryType = "instrumento" | "genero" | "dificuldade";
@@ -199,11 +225,31 @@ export interface Musical {
   name: string;
 }
 
+/** Tema no painel do admin: traz o estado e quantas obras dependem dele. */
+export interface AdminMusical extends Musical {
+  active: boolean;
+  /**
+   * Obras marcadas com este tema. Zero significa que excluir apaga de verdade;
+   * acima de zero, excluir apenas recolhe.
+   */
+  contentCount: number;
+}
+
 // Referência de categoria usada nas tags das obras (pacotes).
+/**
+ * Categoria embutida numa obra (tag do card, ícone do pacote).
+ *
+ * Vem junto da obra, não da lista de `GET /categories` — por isso continua
+ * aparecendo mesmo depois de o admin desativar a categoria: quem comprou tem
+ * de seguir vendo do que a obra é feita.
+ */
 export interface CategoryRef {
   id?: number;
   slug: string;
   name: string;
+  kind?: CategoryKind;
+  icon: string;
+  hue: number;
 }
 
 /**
@@ -578,6 +624,12 @@ export interface AdminUser {
   isAdmin: boolean;
   isArtist: boolean;
   stripeOnboardingComplete: boolean;
+  /** Obras enviadas (sem rascunhos). Sempre 0 para quem não é artista. */
+  postedCount: number;
+  /** Vendas pagas das obras deste artista. Sempre 0 para quem não é artista. */
+  salesCount: number;
+  /** Compras pagas como comprador — vale para qualquer usuário. */
+  boughtCount: number;
   createdAt: string;
 }
 
@@ -610,7 +662,61 @@ export interface AdminPurchase {
   artist: { id: string; name: string | null };
 }
 
+/**
+ * Dashboard do painel admin.
+ *
+ * ⚠️ A CONTA: `grossCents = commissionCents + gatewayCents + artistNetCents`.
+ * As três parcelas têm DONOS diferentes — a comissão fica com a Cantata, a
+ * taxa do gateway sai para o Stripe (descontada do artista) e o resto é
+ * repasse. Somar comissão com gateway numa linha de "taxas" produz um número
+ * que não corresponde a nada.
+ *
+ * `commissionCents` é RECEITA, não lucro: não desconta os custos de operação.
+ */
+export interface AdminDashboard {
+  period: DashboardPeriod;
+  /** Granularidade da série: por dia em 30d, por mês nos demais. */
+  bucket: "dia" | "mes";
+  resumo: {
+    salesCount: number;
+    grossCents: number;
+    commissionCents: number;
+    gatewayCents: number;
+    artistNetCents: number;
+    avgTicketCents: number;
+    /**
+     * Vendas antigas sem o detalhe de taxa gravado (as colunas entraram
+     * depois). Nelas a decomposição não fecha com o bruto — a tela avisa em
+     * vez de mostrar um número que não bate e não se explica.
+     */
+    semDetalheCount: number;
+  };
+  /** Só o que exige ação. `null` quando não há nada daquele tipo. */
+  atencao: Record<"pendente" | "reembolsado" | "falhou", { count: number; cents: number } | null>;
+  topArtists: {
+    id: string;
+    name: string | null;
+    salesCount: number;
+    grossCents: number;
+    commissionCents: number;
+  }[];
+  topContents: {
+    id: string;
+    title: string;
+    artistName: string | null;
+    salesCount: number;
+    grossCents: number;
+  }[];
+  /** Só os períodos COM venda — quem preenche os buracos é o gráfico. */
+  serie: { bucket: string; salesCount: number; grossCents: number; commissionCents: number }[];
+}
+
+export type DashboardPeriod = "30d" | "12m" | "tudo";
+
 export const adminApi = {
+  dashboard: (period: DashboardPeriod = "30d") =>
+    request<AdminDashboard>(`/admin/dashboard?period=${period}`, { auth: true }),
+
   users: (params: { page?: number; q?: string } = {}) => {
     const query = new URLSearchParams();
     if (params.page) query.set("page", String(params.page));
@@ -661,6 +767,48 @@ export const adminApi = {
     );
   },
 
+  // ---- Categorias (editáveis desde 2026-08-06) ----
+  // `categories()` público traz só as ATIVAS; o painel precisa das recolhidas
+  // também, que são justamente as que ele pode trazer de volta.
+  allCategories: () =>
+    request<{ categories: AdminCategory[] }>("/categories/all", { auth: true }),
+
+  createCategory: (payload: { name: string; kind: CategoryKind; icon: string; hue: number }) =>
+    request<{ category: AdminCategory; message: string }>("/categories", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    }),
+
+  updateCategory: (
+    id: number,
+    payload: {
+      name?: string;
+      kind?: CategoryKind;
+      icon?: string;
+      hue?: number;
+      position?: number;
+      active?: boolean;
+    },
+  ) =>
+    request<{ category: AdminCategory; message: string }>(`/categories/${id}`, {
+      method: "PUT",
+      body: payload,
+      auth: true,
+    }),
+
+  /**
+   * Some com a categoria. `deleted` diz o que de fato aconteceu: `true` quando
+   * ela estava vazia e foi apagada, `false` quando tinha obra dentro e foi
+   * apenas recolhida. A tela mostra a `message` — o admin precisa saber qual
+   * dos dois foi.
+   */
+  deleteCategory: (id: number) =>
+    request<{ deleted: boolean; message: string }>(`/categories/${id}`, {
+      method: "DELETE",
+      auth: true,
+    }),
+
   createSubcategory: (type: SubcategoryType, name: string) =>
     request<{ subcategory: Subcategory }>("/categories/subcategories", {
       method: "POST",
@@ -675,8 +823,11 @@ export const adminApi = {
       auth: true,
     }),
 
-  // Musicais (datas especiais) — mesmo padrão das subcategorias: sem
-  // exclusão, o admin desativa (obras podem apontar para o musical).
+  // Musicais (datas especiais). Mesmo conjunto de operações das categorias
+  // desde 2026-08-06 — listar recolhidos, renomear, recolher e excluir.
+  allMusicals: () =>
+    request<{ musicals: AdminMusical[] }>("/categories/musicals/all", { auth: true }),
+
   createMusical: (name: string) =>
     request<{ musical: Musical }>("/categories/musicals", {
       method: "POST",
@@ -685,9 +836,16 @@ export const adminApi = {
     }),
 
   updateMusical: (id: number, payload: { name?: string; active?: boolean }) =>
-    request<{ message: string }>(`/categories/musicals/${id}`, {
+    request<{ musical: AdminMusical; message: string }>(`/categories/musicals/${id}`, {
       method: "PUT",
       body: payload,
+      auth: true,
+    }),
+
+  /** `deleted` diz o que aconteceu: apagado (tema vazio) ou recolhido. */
+  deleteMusical: (id: number) =>
+    request<{ deleted: boolean; message: string }>(`/categories/musicals/${id}`, {
+      method: "DELETE",
       auth: true,
     }),
 };

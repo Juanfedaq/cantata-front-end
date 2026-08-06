@@ -5,6 +5,7 @@ import ArtistAvatar from '@/components/ArtistAvatar.vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
 import { artistsApi, catalogApi, type ArtistSummary, type Category } from '@/services/api'
 import { artistHue } from '@/utils/avatar'
+import { catHue } from '@/utils/categoryStyle'
 
 const artists = ref<ArtistSummary[]>([])
 const loading = ref(true)
@@ -66,17 +67,17 @@ onMounted(async () => {
       <input v-model.lazy="q" type="search" class="search" placeholder="Buscar por nome ou bio…" />
       <div class="chips">
         <button class="chip" :class="{ active: selectedCategory === '' }" @click="selectCategory('')">
-          <CategoryIcon class="chip-icon" slug="todos" :size="16" />
+          <CategoryIcon class="chip-icon" icon="todos" :size="16" />
           Todos
         </button>
         <button
           v-for="cat in categories"
           :key="cat.id"
           class="chip"
-          :class="[cat.slug, { active: selectedCategory === cat.slug }]"
+          :style="catHue(cat)" :class="[{ active: selectedCategory === cat.slug }]"
           @click="selectCategory(cat.slug)"
         >
-          <CategoryIcon class="chip-icon" :slug="cat.slug" :size="16" />
+          <CategoryIcon class="chip-icon" :icon="cat.icon" :size="16" />
           {{ cat.name }}
         </button>
       </div>
@@ -173,11 +174,6 @@ onMounted(async () => {
     font-size: 0.7rem;
   }
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 .chip-icon {

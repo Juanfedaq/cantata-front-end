@@ -4,6 +4,7 @@ import CategoryIcon from '@/components/CategoryIcon.vue'
 import { fileUrl, formatPrice, type CategoryRef, type Musical } from '@/services/api'
 import { useSpotlightStore } from '@/stores/spotlight'
 import { useOwnedStore } from '@/stores/owned'
+import { catHue } from '@/utils/categoryStyle'
 
 // Obras são pacotes: `categories` são as tags do que o pacote inclui.
 // `musical` (dado mantém o nome interno) = TEMA opcional da obra (Natal,
@@ -60,12 +61,12 @@ const isOwned = computed(() => owned.owns(props.id))
           v-for="cat in categories"
           :key="cat.slug"
           class="category"
-          :class="cat.slug"
+          :style="catHue(cat)"
           role="img"
           :aria-label="cat.name"
           :title="cat.name"
         >
-          <CategoryIcon :slug="cat.slug" :size="18" />
+          <CategoryIcon :icon="cat.icon" :size="18" />
         </span>
       </span>
       <h3 class="title">{{ title }}</h3>
@@ -204,11 +205,6 @@ const isOwned = computed(() => owned.owns(props.id))
   display: inline-flex;
   color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 .title {

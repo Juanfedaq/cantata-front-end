@@ -10,8 +10,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
+import BlockSelect from '@/components/BlockSelect.vue'
 import FileGlyph from '@/components/FileGlyph.vue'
 import PublishPreview from '@/components/PublishPreview.vue'
+import { KIND_ACCEPT, KIND_HINT, KIND_PREVIEW_ACCEPT } from '@/categoryKinds'
 import { useAuthStore } from '@/stores/auth'
 import {
   ApiError,
@@ -58,6 +60,13 @@ const musicalOptions = computed(() => {
   return musicals.value
 })
 const editingMusical = ref<Musical | null>(null)
+
+// "Nenhum" é uma OPÇÃO da lista, e não a ausência dela: o tema é opcional, e
+// quem escolheu um precisa conseguir voltar atrás.
+const temaOptions = computed(() => [
+  { value: null as number | null, label: 'Nenhum' },
+  ...musicalOptions.value.map((m) => ({ value: m.id as number | null, label: m.name })),
+])
 
 const title = ref('')
 const description = ref('')
@@ -113,25 +122,18 @@ function toggleExpand(slug: string) {
   expanded.value[slug] = !expanded.value[slug]
 }
 
-// Regras de tipo POR categoria (espelham o backend — upload.js).
-const CATEGORY_ACCEPT: Record<string, string> = {
-  musicas: '.mp3',
-  coreografias: '.mp4',
-  partituras: '.pdf,.docx,.jpg,.jpeg,.png,.webp',
-  cifras: '.pdf,.docx,.jpg,.jpeg,.png,.webp',
-}
-const CATEGORY_PREVIEW_ACCEPT: Record<string, string> = {
-  musicas: '.mp3',
-  coreografias: '.mp4',
-  partituras: '.pdf,.jpg,.jpeg,.png,.webp',
-  cifras: '.pdf,.jpg,.jpeg,.png,.webp',
-}
-const CATEGORY_HINT: Record<string, string> = {
-  musicas: 'áudio .mp3',
-  coreografias: 'vídeo .mp4',
-  partituras: '.pdf, .docx ou imagem',
-  cifras: '.pdf, .docx ou imagem',
-}
+// Regras de tipo por categoria. Eram três mapas escritos à mão, um por slug —
+// o que só valia enquanto as categorias eram as quatro fixas. Agora saem da
+// NATUREZA que o admin escolheu (`kind`), que veio junto na resposta da API:
+// categoria criada pelo painel já chega ao formulário com as regras certas,
+// sem deploy. O backend continua sendo quem recusa de fato (upload.js); isto
+// aqui é só o aviso antecipado e o filtro do seletor de arquivo.
+const kindDe = (slug: string) => categories.value.find((c) => c.slug === slug)?.kind ?? 'documento'
+
+const acceptDe = (slug: string) => KIND_ACCEPT[kindDe(slug)]
+const previewAcceptDe = (slug: string) => KIND_PREVIEW_ACCEPT[kindDe(slug)]
+const dicaDe = (slug: string) => KIND_HINT[kindDe(slug)]
+
 const MAX_FILES_PER_CATEGORY = 10
 
 /** Natureza visual de um arquivo pelo nome (decide o ícone do box). */
@@ -316,7 +318,10 @@ const includedSummary = computed(() =>
 // ---- Dados do preview ao vivo (PublishPreview, à direita) --------------------
 const previewCover = computed(() => coverUrl.value || fileUrl(existingCoverPath.value) || null)
 const previewCategories = computed<CategoryRef[]>(() =>
-  categories.value.filter((c) => isIncluded(c.slug)).map((c) => ({ slug: c.slug, name: c.name })),
+  categories.value
+    .filter((c) => isIncluded(c.slug))
+    // O preview ao vivo mostra a tag colorida com o ícone — precisa dos dois.
+    .map((c) => ({ slug: c.slug, name: c.name, icon: c.icon, hue: c.hue })),
 )
 const previewMusicalName = computed(
   () => (musicalId.value && musicalOptions.value.find((m) => m.id === musicalId.value)?.name) || null,
@@ -381,6 +386,16 @@ onMounted(async () => {
           editingMusical.value = current.musical
         }
         for (const item of current.items) {
+          // A categoria pode ter sido RECOLHIDA pelo admin depois de a obra
+          // ter sido publicada — nesse caso ela não vem em GET /categories e
+          // não tem área. Criamos a área assim mesmo, senão o artista abriria
+          // a edição sem enxergar aquele pedaço da própria obra e sem
+          // conseguir removê-lo. O formulário só não deixa somar arquivo novo
+          // lá (a categoria não aparece na lista de escolha).
+          if (!areas.value[item.category.slug]) {
+            areas.value[item.category.slug] = blankArea()
+            categories.value = [...categories.value, item.category as Category]
+          }
           const area = areas.value[item.category.slug]
           if (!area) continue
           area.existing = true
@@ -414,10 +429,10 @@ function addFiles(slug: string, e: Event) {
   if (!area || !picked.length) return
   error.value = ''
 
-  const accept = CATEGORY_ACCEPT[slug] ?? ''
+  const accept = acceptDe(slug)
   const rejected = picked.filter((f) => !extAllowed(accept, f.name))
   if (rejected.length) {
-    error.value = `Tipo não aceito em ${slug}: ${rejected.map((f) => f.name).join(', ')} (aceita ${CATEGORY_HINT[slug]}).`
+    error.value = `Tipo não aceito em ${slug}: ${rejected.map((f) => f.name).join(', ')} (aceita ${dicaDe(slug)}).`
   }
 
   const room = MAX_FILES_PER_CATEGORY - finalFileCount(area)
@@ -451,7 +466,7 @@ function pickPreview(slug: string, e: Event) {
   const file = input.files?.[0] ?? null
   input.value = ''
   if (!area || !file) return
-  if (!extAllowed(CATEGORY_PREVIEW_ACCEPT[slug] ?? '', file.name)) {
+  if (!extAllowed(previewAcceptDe(slug), file.name)) {
     error.value = `Prévia de ${slug} não aceita este tipo de arquivo.`
     return
   }
@@ -641,13 +656,12 @@ async function submit(asDraft: boolean) {
       <!-- ============ PASSO 1: Detalhes ============ -->
       <div v-show="step === 1" class="step">
       <!-- Tema (opcional): data especial do ano a que a obra se liga -->
-      <label v-if="musicals.length" class="field narrow">
+      <!-- <div>, e não <label>: o BlockSelect é um botão com painel, e um
+           <label> em volta faria o clique no rótulo abrir/fechar o painel. -->
+      <div v-if="musicals.length" class="field narrow">
         <span>Tema (opcional) — data especial do ano, se a obra se encaixar</span>
-        <select v-model="musicalId">
-          <option :value="null">Nenhum</option>
-          <option v-for="m in musicalOptions" :key="m.id" :value="m.id">{{ m.name }}</option>
-        </select>
-      </label>
+        <BlockSelect v-model="musicalId" :options="temaOptions" aria-label="Tema da obra" />
+      </div>
 
       <label class="field">
         <span>Título *</span>
@@ -726,7 +740,7 @@ async function submit(asDraft: boolean) {
             <template v-if="!areas[cat.slug]?.remove">
               <!-- Arquivos do comprador: boxes visuais + adicionar no FIM -->
               <p class="up-label">
-                Arquivos que o comprador baixa — {{ CATEGORY_HINT[cat.slug] }} (máx. 50MB cada)
+                Arquivos que o comprador baixa — {{ dicaDe(cat.slug) }} (máx. 50MB cada)
               </p>
               <div class="up-grid">
                 <!-- já no servidor (edição) -->
@@ -770,12 +784,12 @@ async function submit(asDraft: boolean) {
                 </div>
 
                 <!-- adicionar (sempre no fim) -->
-                <label class="up-add" :title="`Adicionar arquivos (${CATEGORY_HINT[cat.slug]})`">
+                <label class="up-add" :title="`Adicionar arquivos (${dicaDe(cat.slug)})`">
                   <input
                     type="file"
                     multiple
                     class="sr-only"
-                    :accept="CATEGORY_ACCEPT[cat.slug]"
+                    :accept="acceptDe(cat.slug)"
                     @change="addFiles(cat.slug, $event)"
                   />
                   <span class="up-plus" aria-hidden="true">+</span>
@@ -812,7 +826,7 @@ async function submit(asDraft: boolean) {
                   <input
                     type="file"
                     class="sr-only"
-                    :accept="CATEGORY_PREVIEW_ACCEPT[cat.slug]"
+                    :accept="previewAcceptDe(cat.slug)"
                     @change="pickPreview(cat.slug, $event)"
                   />
                   <span class="up-plus" aria-hidden="true">+</span>
@@ -1078,6 +1092,8 @@ async function submit(asDraft: boolean) {
   padding: 0.7rem 0.6rem;
   background: none;
   border: none;
+  // Ver o comentário em .action (ProfileView): botão não herda a fonte.
+  font-family: inherit;
   color: $text-secondary;
   cursor: pointer;
   transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
@@ -1516,6 +1532,7 @@ async function submit(asDraft: boolean) {
   padding: 0;
   margin-top: 0.75rem;
   cursor: pointer;
+  font-family: inherit;
   font-size: 0.82rem;
   color: $color-error;
   transition: color 0.5s $ease-brand;

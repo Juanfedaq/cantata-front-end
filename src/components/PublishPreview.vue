@@ -5,6 +5,7 @@
 // e mostra placeholders quando os campos ainda estão vazios.
 import CategoryIcon from '@/components/CategoryIcon.vue'
 import { formatPrice, type CategoryRef } from '@/services/api'
+import { catHue } from '@/utils/categoryStyle'
 
 defineProps<{
   title: string
@@ -25,8 +26,8 @@ defineProps<{
     </div>
     <div class="pbody">
       <span class="ptags">
-        <span v-for="cat in categories" :key="cat.slug" class="pcat" :class="cat.slug">
-          <CategoryIcon :slug="cat.slug" :size="18" />
+        <span v-for="cat in categories" :key="cat.slug" class="pcat" :style="catHue(cat)">
+          <CategoryIcon :icon="cat.icon" :size="18" />
         </span>
       </span>
       <h3 class="ptitle" :class="{ placeholder: !title }">{{ title || 'Título da obra' }}</h3>
@@ -109,11 +110,6 @@ defineProps<{
   display: inline-flex;
   color: hsl(var(--cat-hue, 45), 45%, var(--cat-tag-l, 64%));
 
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 .ptitle {

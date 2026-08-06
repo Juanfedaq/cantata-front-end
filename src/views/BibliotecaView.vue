@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { motion, MotionConfig } from 'motion-v'
 import AppLayout from '@/components/AppLayout.vue'
 import ContentCard from '@/components/ContentCard.vue'
 import CategoryIcon from '@/components/CategoryIcon.vue'
+import BlockSelect from '@/components/BlockSelect.vue'
 import {
   catalogApi,
   type CatalogItem,
@@ -13,6 +14,7 @@ import {
   type Subcategory,
   type SubcategoryType,
 } from '@/services/api'
+import { catHue } from '@/utils/categoryStyle'
 
 const route = useRoute()
 const router = useRouter()
@@ -80,38 +82,6 @@ const order = ref<Order>(
     ? (String(route.query.ordem) as Order)
     : '',
 )
-const orderOpen = ref(false)
-const orderRef = ref<HTMLElement | null>(null)
-
-const orderLabel = computed(
-  () => ORDER_OPTIONS.find((o) => o.value === order.value)?.label ?? 'Ordenar por…',
-)
-
-// Largura FIXA dos dropdowns: reserva sempre o espaço do MAIOR rótulo
-// possível (placeholder + todas as opções), renderizado invisível empilhado
-// — trocar a seleção não muda a largura do botão nem empurra os vizinhos.
-const orderLabels = computed(() => ['Ordenar por…', ...ORDER_OPTIONS.map((o) => o.label)])
-
-function pickOrder(value: Order) {
-  order.value = value
-  orderOpen.value = false
-}
-
-// Fecha em clique-fora (pointerdown — ver lição do dropdown do header no
-// PROGRESS.md: item que re-renderiza no clique falha o contains no click)
-// e em Escape.
-function onDocPointerDown(e: PointerEvent) {
-  const t = e.target as Node
-  if (orderOpen.value && !orderRef.value?.contains(t)) orderOpen.value = false
-  if (temaOpen.value && !temaRef.value?.contains(t)) temaOpen.value = false
-}
-function onDocKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    orderOpen.value = false
-    temaOpen.value = false
-  }
-}
-
 // Tema (2026-07-23): antes "musical" era um tipo (padrão × musical); virou
 // um TEMA opcional da obra (Natal, Páscoa, …). Aqui é um DROPDOWN
 // personalizado (mesmo estilo do "Ordenar por…"), independente das
@@ -123,17 +93,13 @@ const selectedMusical = ref<number | null>(
     ? Number(route.query.tema)
     : null,
 )
-const temaOpen = ref(false)
-const temaRef = ref<HTMLElement | null>(null)
-const temaLabel = computed(
-  () => musicals.value.find((m) => m.id === selectedMusical.value)?.name ?? 'Tema…',
-)
-const temaLabels = computed(() => ['Tema…', ...musicals.value.map((m) => m.name)])
-
-function pickTema(id: number | null) {
-  selectedMusical.value = id
-  temaOpen.value = false
-}
+// "Todos os temas" é uma OPÇÃO da lista (`emptyValue: null`): o botão segue
+// dizendo "Tema…" quando nada está escolhido, mas quem escolheu um tema
+// precisa conseguir desfazer.
+const temaOptions = computed(() => [
+  { value: null as number | null, label: 'Todos os temas' },
+  ...musicals.value.map((m) => ({ value: m.id as number | null, label: m.name })),
+])
 
 /**
  * Espelha TODO o estado de filtro na URL — categorias, tema, ordem, busca e
@@ -279,9 +245,9 @@ watch(
   },
 )
 
+// Os listeners de clique-fora e Escape mudaram de casa: agora vivem dentro do
+// BlockSelect, cada instância cuidando do próprio painel.
 onMounted(async () => {
-  document.addEventListener('pointerdown', onDocPointerDown)
-  document.addEventListener('keydown', onDocKeydown)
   try {
     const cats = await catalogApi.categories()
     categories.value = cats.categories
@@ -293,10 +259,6 @@ onMounted(async () => {
   fetchItems()
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onDocPointerDown)
-  document.removeEventListener('keydown', onDocKeydown)
-})
 </script>
 
 <template>
@@ -319,127 +281,45 @@ onBeforeUnmount(() => {
             :class="{ active: nothingSelected }"
             @click="clearFilters"
           >
-            <CategoryIcon class="chip-icon" slug="todos" :size="16" />
+            <CategoryIcon class="chip-icon" icon="todos" :size="16" />
             Todos
           </button>
           <button
             v-for="cat in categories"
             :key="cat.id"
             class="chip"
-            :class="[cat.slug, { active: selectedCategories.includes(cat.slug) }]"
+            :style="catHue(cat)" :class="[{ active: selectedCategories.includes(cat.slug) }]"
             @click="toggleCategory(cat.slug)"
           >
-            <CategoryIcon class="chip-icon" :slug="cat.slug" :size="16" />
+            <CategoryIcon class="chip-icon" :icon="cat.icon" :size="16" />
             {{ cat.name }}
           </button>
           <!-- Tema (2026-07-23): dropdown no lugar do antigo chip "Musicais"
                (reaproveita o estilo .order-* — dropdown blocado idêntico). -->
-          <div v-if="musicals.length" ref="temaRef" class="order">
-            <button
-              type="button"
-              class="order-btn"
-              :class="{ active: selectedMusical !== null }"
-              aria-haspopup="listbox"
-              :aria-expanded="temaOpen"
-              @click="temaOpen = !temaOpen"
-            >
-              <span class="dd-label">
-                <span v-for="l in temaLabels" :key="l" class="dd-ghost" aria-hidden="true">{{ l }}</span>
-                <span class="dd-current">{{ temaLabel }}</span>
-              </span>
-              <svg
-                class="order-arrow"
-                :class="{ open: temaOpen }"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <Transition name="drop">
-              <ul v-if="temaOpen" class="order-menu" role="listbox" aria-label="Tema">
-                <li>
-                  <button
-                    type="button"
-                    role="option"
-                    class="order-item"
-                    :class="{ selected: selectedMusical === null }"
-                    :aria-selected="selectedMusical === null"
-                    @click="pickTema(null)"
-                  >
-                    Todos os temas
-                  </button>
-                </li>
-                <li v-for="m in musicals" :key="m.id">
-                  <button
-                    type="button"
-                    role="option"
-                    class="order-item"
-                    :class="{ selected: selectedMusical === m.id }"
-                    :aria-selected="selectedMusical === m.id"
-                    @click="pickTema(m.id)"
-                  >
-                    {{ m.name }}
-                  </button>
-                </li>
-              </ul>
-            </Transition>
-          </div>
-          <!-- Ordenação: dropdown personalizado blocado (padrão do menu do
-               usuário no header: painel colado, fecha fora/Escape) -->
-          <div ref="orderRef" class="order">
-            <button
-              type="button"
-              class="order-btn"
-              :class="{ active: order !== '' }"
-              aria-haspopup="listbox"
-              :aria-expanded="orderOpen"
-              @click="orderOpen = !orderOpen"
-            >
-              <span class="dd-label">
-                <span v-for="l in orderLabels" :key="l" class="dd-ghost" aria-hidden="true">{{ l }}</span>
-                <span class="dd-current">{{ orderLabel }}</span>
-              </span>
-              <svg
-                class="order-arrow"
-                :class="{ open: orderOpen }"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <Transition name="drop">
-              <ul v-if="orderOpen" class="order-menu" role="listbox" aria-label="Ordenar por">
-                <li v-for="opt in ORDER_OPTIONS" :key="opt.value">
-                  <button
-                    type="button"
-                    role="option"
-                    class="order-item"
-                    :class="{ selected: order === opt.value }"
-                    :aria-selected="order === opt.value"
-                    @click="pickOrder(opt.value)"
-                  >
-                    {{ opt.label }}
-                  </button>
-                </li>
-              </ul>
-            </Transition>
-          </div>
+          <!-- Tema e ordenação: BlockSelect, o dropdown blocado da plataforma
+               (src/components/BlockSelect.vue). Era markup duplicado aqui —
+               virou componente em 2026-08-05, quando o painel do admin
+               precisou do mesmo controle. `class="order"` mantém a colagem
+               das bordas no grupo blocado: o Vue repassa a classe à raiz do
+               componente filho. -->
+          <BlockSelect
+            v-if="musicals.length"
+            v-model="selectedMusical"
+            class="order"
+            :options="temaOptions"
+            :empty-value="null"
+            placeholder="Tema…"
+            aria-label="Filtrar por tema"
+            highlight-when-set
+          />
+          <BlockSelect
+            v-model="order"
+            class="order"
+            :options="ORDER_OPTIONS"
+            placeholder="Ordenar por…"
+            aria-label="Ordenar a biblioteca"
+            highlight-when-set
+          />
         </div>
       </motion.div>
 
@@ -551,13 +431,6 @@ onBeforeUnmount(() => {
     padding: 0.4rem 0.85rem;
     font-size: 0.7rem;
   }
-
-  // Matiz da categoria para o ícone do chip (mesma disciplina dos cards).
-  @each $slug, $hue in $category-hues {
-    &.#{$slug} {
-      --cat-hue: #{$hue};
-    }
-  }
 }
 
 // Ícone na tinta da categoria (lightness por tema, como as tags); o chip
@@ -570,6 +443,9 @@ onBeforeUnmount(() => {
 // Dropdown de ordenação personalizado: gatilho com o desenho dos chips
 // (blocado, colado no grupo) e painel blocado ancorado abaixo (mesmo
 // padrão do menu do usuário no header).
+// Posição do BlockSelect dentro do grupo blocado de chips: a margem
+// negativa cola as bordas de 1px nas vizinhas. O Vue repassa esta classe à
+// raiz do componente filho, e o CSS com escopo desta view também a alcança.
 .order {
   position: relative;
   margin: 0 -1px -1px 0;
@@ -577,115 +453,6 @@ onBeforeUnmount(() => {
   display: flex;
 }
 
-.order-btn {
-  @include label-type;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  gap: 0.5rem;
-  white-space: nowrap;
-  padding: 0.55rem 1.1rem;
-  border: 1px solid $line;
-  border-radius: 0;
-  background: $color-back;
-  color: $text-secondary;
-  cursor: pointer;
-  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
-
-  &:hover {
-    color: $color-white;
-    background: $fill-hover-solid;
-  }
-
-  &.active {
-    color: $gold-text;
-    background: $fill-active-solid;
-  }
-}
-
-// Rótulo do dropdown com LARGURA FIXA: os "fantasmas" (todas as opções +
-// placeholder, invisíveis) e o rótulo atual ocupam a MESMA célula de grid,
-// então a célula fica sempre com a largura do maior — trocar a seleção não
-// altera a largura do botão (nem empurra os vizinhos do grupo).
-.dd-label {
-  display: grid;
-  justify-items: center;
-}
-
-.dd-ghost,
-.dd-current {
-  grid-area: 1 / 1;
-  white-space: nowrap;
-}
-
-.dd-ghost {
-  visibility: hidden;
-}
-
-// Seta da família dos ícones do sistema; gira com o painel aberto.
-.order-arrow {
-  transition: transform 0.5s $ease-brand;
-
-  &.open {
-    transform: rotate(180deg);
-  }
-}
-
-// Painel: moldura 1px, itens colados separados por linha, fundo OPACO
-// (vitrine — o backdrop de anéis não pode atravessar), acima do grid.
-.order-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 5;
-  min-width: 100%;
-  margin-top: -1px;
-  list-style: none;
-  padding: 0;
-  border: 1px solid $line;
-  background: $color-back;
-
-  li + li {
-    border-top: 1px solid $line;
-  }
-}
-
-.order-item {
-  @include label-type;
-  display: block;
-  width: 100%;
-  padding: 0.6rem 1.1rem;
-  border: none;
-  background: none;
-  color: $text-secondary;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 0.5s $ease-brand, background-color 0.5s $ease-brand;
-
-  &:hover {
-    color: $color-white;
-    background: $fill-hover-solid;
-  }
-
-  &.selected {
-    color: $gold-text;
-    background: $fill-active-solid;
-  }
-}
-
-// Entrada/saída do painel: véu + descida leve (padrão dos dropdowns).
-.drop-enter-active,
-.drop-leave-active {
-  transition: opacity 0.35s $ease-brand, transform 0.35s $ease-brand;
-}
-
-.drop-enter-from,
-.drop-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
 
 // Chips diretos no contêiner: sem gap (colados); o respiro fica só
 // entre o rótulo e o grupo (guia §3.3).
