@@ -16,6 +16,29 @@
 O protocolo de checkpoint (atualizar `estado.md` ao concluir tarefa) está no
 `CLAUDE.md` do backend e vale igual aqui.
 
+## Manutenção da documentação (obrigatório)
+
+> **Regra de ouro: mudou o comportamento, o documento muda no MESMO commit.**
+> Documentação que descreve um sistema que não existe mais é pior que
+> documentação nenhuma — é confiável o bastante para alguém agir e errar.
+
+O protocolo completo (o que criar, o que mover para o histórico, o que apagar,
+como escrever) está em `../cantata-back-end/CLAUDE.md` e vale para os dois
+repositórios. O que é específico daqui:
+
+| O que você mudou | Onde registrar |
+|---|---|
+| Rota nova, tela nova, mudança de navegação | `docs/paginas.md` |
+| Cor, tipografia, componente, espaçamento, movimento | `docs/guia-de-estilo.md` |
+| Qualquer coisa | `../cantata-back-end/docs/projeto/estado.md` |
+| Contrato da API que o site consome | o `.md` da feature, em `../cantata-back-end/docs/` |
+
+Bandeira nova em `src/flags.ts` **documenta a si mesma**: escreva no comentário
+o que ela fecha, por que, e onde está o par no servidor, se houver.
+
+Antes de dar a tarefa por concluída: nenhum documento pode continuar afirmando
+o que deixou de ser verdade.
+
 ## Regras deste repositório
 
 - **Vue 3 + TypeScript + Pinia + vue-router**, SCSS. `<script setup>`.
